@@ -1,9 +1,0 @@
-[package]
-name = "edge_sentinel"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-opencv = "0.98.1"
-serde = { version = "1.0.228", features = ["derive"] }
-anyhow = "1.0.100"
