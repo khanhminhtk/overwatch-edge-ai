@@ -1,6 +1,6 @@
 from torchvision.models.mobilenetv3 import mobilenet_v3_small, MobileNet_V3_Small_Weights
 
-from src.modeling.backbones.base_backbone import BaseBackBone
+from worktree.ai_forge.ai_forge.src.modeling.ocr.backbones.base_backbone import BaseBackBone
 
 class MobileNetBackBone(BaseBackBone):
     def __init__(
