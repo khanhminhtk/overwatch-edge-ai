@@ -1,6 +1,6 @@
 import torch
 
-from src.modeling.backbones.mobinet_backbone import MobileNetBackBone
+from src.modeling.recognizer.backbones.mobinet_backbone import MobileNetBackBone
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
