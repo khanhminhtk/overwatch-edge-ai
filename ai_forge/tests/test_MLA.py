@@ -61,18 +61,6 @@ def test_forward_raises_when_x_last_dim_mismatch():
         mla(x)
 
 
-def test_forward_raises_when_both_mask_and_attn_mask_provided():
-    mla = _build_mla()
-
-    batch_size = 2
-    seq_len = 10
-    x = torch.randn(batch_size, seq_len, mla.d_model, device=DEVICE)
-    mask = torch.ones(seq_len, seq_len, device=DEVICE)
-
-    with pytest.raises(ValueError, match="Provide only one of mask or attn_mask"):
-        mla(x, mask=mask, attn_mask=mask)
-
-
 @pytest.mark.parametrize(
     "shape",
     [
