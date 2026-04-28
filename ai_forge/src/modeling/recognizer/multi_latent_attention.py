@@ -113,7 +113,6 @@ class MultiLatentAttention(nn.Module, AttentionPort):
     def forward(
         self,
         x: torch.Tensor,
-        mask: torch.Tensor | None = None,
         attn_mask: torch.Tensor | None = None,
         has_cls_token: bool = False,
     ) -> torch.Tensor:
@@ -145,17 +144,13 @@ class MultiLatentAttention(nn.Module, AttentionPort):
             )
 
         attn_scores = torch.matmul(q, k.transpose(-2, -1)) / (self.head_dim ** 0.5) # [B, num_head, P, P]
-        effective_mask = attn_mask if attn_mask is not None else mask
-        if mask is not None and attn_mask is not None:
-            raise ValueError("Provide only one of mask or attn_mask, not both.")
-
-        if effective_mask is not None:
-            self._validate_attn_mask(effective_mask, bsz, patch)
-            if effective_mask.dim() == 2:
-                effective_mask = effective_mask.unsqueeze(0).unsqueeze(0)
-            elif effective_mask.dim() == 3:
-                effective_mask = effective_mask.unsqueeze(1)
-            attn_scores = attn_scores.masked_fill(effective_mask == 0, float("-inf"))
+        if attn_mask is not None:
+            self._validate_attn_mask(attn_mask, bsz, patch)
+            if attn_mask.dim() == 2:
+                attn_mask = attn_mask.unsqueeze(0).unsqueeze(0)
+            elif attn_mask.dim() == 3:
+                attn_mask = attn_mask.unsqueeze(1)
+            attn_scores = attn_scores.masked_fill(attn_mask == 0, float("-inf"))
         attn_probs = torch.softmax(attn_scores, dim=-1) # [B, num_head, P, P]
         attn_probs = self.attn_drop(attn_probs)
         attn_output = torch.matmul(attn_probs, v) # [B, num_head, P, head_dim]

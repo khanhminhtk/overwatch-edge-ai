@@ -11,7 +11,6 @@ class AttentionPort(ABC):
     def forward(
         self,
         x: Any,
-        mask: Any | None = None,
         attn_mask: Any | None = None,
         has_cls_token: bool = False,
     ) -> Any:
