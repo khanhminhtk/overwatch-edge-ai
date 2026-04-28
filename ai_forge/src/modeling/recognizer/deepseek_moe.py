@@ -4,9 +4,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from src.domain.ports.recognizer.recognizer_component_ports import MoEPort
 from src.modeling.common.activations import SwiGLU
 
-class DeepSeekMOE(nn.Module):
+class DeepSeekMOE(nn.Module, MoEPort):
     def __init__(
         self,
         device: str | torch.device | None,

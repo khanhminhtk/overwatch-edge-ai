@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 
+from src.domain.ports.recognizer.recognizer_component_ports import AttentionPort
 from src.modeling.common.rope import apply_rotary_pos_emb
 
-class MultiLatentAttention(nn.Module):
+class MultiLatentAttention(nn.Module, AttentionPort):
     def __init__(
         self,
         device: str | torch.device,

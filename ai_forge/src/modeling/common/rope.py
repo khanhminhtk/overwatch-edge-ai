@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from src.domain.ports.common.common_component_ports import PositionalEncodingPort
+
 
 def rotate_half(x: torch.Tensor) -> torch.Tensor:
     # x: (..., dim) -> (..., dim)
@@ -14,7 +16,7 @@ def rotate_half(x: torch.Tensor) -> torch.Tensor:
     return x_rotated.flatten(-2)  # (..., dim)
 
 
-class ROPE(nn.Module):
+class ROPE(nn.Module, PositionalEncodingPort):
     def __init__(
         self,
         dim: int,

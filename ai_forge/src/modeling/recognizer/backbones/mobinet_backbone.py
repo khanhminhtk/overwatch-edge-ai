@@ -1,8 +1,8 @@
 from torchvision.models.mobilenetv3 import mobilenet_v3_small, MobileNet_V3_Small_Weights
 
-from src.modeling.recognizer.backbones.base_backbone import BaseBackBone
+from src.infra.modeling.recognizer.backbones.torch_base_backbone import TorchBaseBackBone
 
-class MobileNetBackBone(BaseBackBone):
+class MobileNetBackBone(TorchBaseBackBone):
     def __init__(
         self,
         device: str,

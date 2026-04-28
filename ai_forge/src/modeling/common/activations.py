@@ -3,6 +3,8 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
+from src.domain.ports.common.common_component_ports import CacheableActivationPort
+
 
 class _SwiGLUFunction(torch.autograd.Function):
     @staticmethod
@@ -29,7 +31,7 @@ class _SwiGLUFunction(torch.autograd.Function):
         return grad_a, grad_b
 
 
-class SwiGLU(nn.Module):
+class SwiGLU(nn.Module, CacheableActivationPort):
     def __init__(
         self,
         device: str | torch.device,
