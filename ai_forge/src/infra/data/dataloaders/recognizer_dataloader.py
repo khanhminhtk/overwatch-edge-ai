@@ -32,11 +32,10 @@ class RecognizerDataLoader(torch.utils.data.DataLoader):
             raise ValueError("RecognizerDataLoader.__init__: drop_last must be a boolean")
         if not isinstance(persistent_workers, bool):
             raise ValueError("RecognizerDataLoader.__init__: persistent_workers must be a boolean")
-        if num_workers > 0 and persistent_workers and not torch.utils.data.get_worker_info():
-            raise ValueError("RecognizerDataLoader.__init__: persistent_workers=True requires num_workers > 0")
         if num_workers == 0 and persistent_workers:
             raise ValueError("RecognizerDataLoader.__init__: persistent_workers=True requires num_workers > 0")
 
 
         collate_fn = build_ctc_collate_fn(encoder)
+        self.encoder = encoder
         super().__init__(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, collate_fn=collate_fn, pin_memory=pin_memory, drop_last=drop_last, persistent_workers=persistent_workers)
