@@ -1,0 +1,92 @@
+recognizer:
+  architecture:
+    d_model: ${RECOG_D_MODEL}
+    num_heads: ${RECOG_NUM_HEADS}
+    d_c: ${RECOG_D_C}
+    d_c1: ${RECOG_D_C1}
+    dim_rope: ${RECOG_DIM_ROPE}
+    n_shared_experts: ${RECOG_N_SHARED_EXPERTS}
+    n_routed_experts: ${RECOG_N_ROUTED_EXPERTS}
+    top_k: ${RECOG_TOP_K}
+    expert_hidden_dim: ${RECOG_EXPERT_HIDDEN_DIM}
+    attn_drop: ${RECOG_ATTN_DROP}
+    proj_drop: ${RECOG_PROJ_DROP}
+    moe_dropout: ${RECOG_MOE_DROPOUT}
+    config_training:
+      dataset:
+        data_root: ${RECOG_DATA_ROOT}
+        train_split: ${RECOG_TRAIN_SPLIT}
+        val_split: ${RECOG_VAL_SPLIT}
+        val_ratio: ${RECOG_VAL_RATIO}
+        split_seed: ${RECOG_SPLIT_SEED}
+        num_patches: ${RECOG_NUM_PATCHES}
+        patch_size: [${RECOG_PATCH_H}, ${RECOG_PATCH_W}]
+        transforms:
+          enabled: ${RECOG_TRANSFORM_ENABLED}
+          train:
+            brightness: ${RECOG_TRANSFORM_TRAIN_BRIGHTNESS}
+            contrast: ${RECOG_TRANSFORM_TRAIN_CONTRAST}
+            saturation: ${RECOG_TRANSFORM_TRAIN_SATURATION}
+            hue: ${RECOG_TRANSFORM_TRAIN_HUE}
+            p_grayscale: ${RECOG_TRANSFORM_TRAIN_P_GRAYSCALE}
+            blur_kernel_size: [${RECOG_TRANSFORM_TRAIN_BLUR_KERNEL_H}, ${RECOG_TRANSFORM_TRAIN_BLUR_KERNEL_W}]
+            blur_sigma: [${RECOG_TRANSFORM_TRAIN_BLUR_SIGMA_MIN}, ${RECOG_TRANSFORM_TRAIN_BLUR_SIGMA_MAX}]
+            affine_degrees: ${RECOG_TRANSFORM_TRAIN_AFFINE_DEGREES}
+            affine_translate: [${RECOG_TRANSFORM_TRAIN_AFFINE_TRANSLATE_H}, ${RECOG_TRANSFORM_TRAIN_AFFINE_TRANSLATE_W}]
+            affine_scale: [${RECOG_TRANSFORM_TRAIN_AFFINE_SCALE_MIN}, ${RECOG_TRANSFORM_TRAIN_AFFINE_SCALE_MAX}]
+            mean: [${RECOG_TRANSFORM_TRAIN_MEAN_R}, ${RECOG_TRANSFORM_TRAIN_MEAN_G}, ${RECOG_TRANSFORM_TRAIN_MEAN_B}]
+            std: [${RECOG_TRANSFORM_TRAIN_STD_R}, ${RECOG_TRANSFORM_TRAIN_STD_G}, ${RECOG_TRANSFORM_TRAIN_STD_B}]
+          val:
+            mean: [${RECOG_TRANSFORM_VAL_MEAN_R}, ${RECOG_TRANSFORM_VAL_MEAN_G}, ${RECOG_TRANSFORM_VAL_MEAN_B}]
+            std: [${RECOG_TRANSFORM_VAL_STD_R}, ${RECOG_TRANSFORM_VAL_STD_G}, ${RECOG_TRANSFORM_VAL_STD_B}]
+      vocab:
+        mode: full
+        full_charset: ${RECOG_VOCAB_FULL}
+      dataloader:
+        batch_size: ${RECOG_BATCH_SIZE}
+        shuffle: ${RECOG_SHUFFLE}
+        num_workers: ${RECOG_NUM_WORKERS}
+        pin_memory: ${RECOG_PIN_MEMORY}
+        drop_last: ${RECOG_DROP_LAST}
+        persistent_workers: ${RECOG_PERSISTENT_WORKERS}
+      optimizer:
+        lr: ${RECOG_LR}
+        weight_decay: ${RECOG_WEIGHT_DECAY}
+        amp_enabled: ${RECOG_AMP_ENABLED}
+        amp_dtype: ${RECOG_AMP_DTYPE}
+        grad_accum_steps: ${RECOG_GRAD_ACCUM_STEPS}
+        scheduler:
+          enabled: ${RECOG_SCHED_ENABLED}
+          warmup_epochs: ${RECOG_SCHED_WARMUP_EPOCHS}
+          min_lr_ratio: ${RECOG_SCHED_MIN_LR_RATIO}
+      backbone:
+        unfreeze_classifier: ${RECOG_BACKBONE_UNFREEZE_CLASSIFIER}
+        unfreeze_num_layers: ${RECOG_BACKBONE_UNFREEZE_NUM_LAYERS}
+      loss:
+        blank: ${RECOG_CTC_BLANK}
+        zero_infinity: ${RECOG_CTC_ZERO_INFINITY}
+        aux_loss_weight: ${RECOG_AUX_LOSS_WEIGHT}
+      loop:
+        epochs: ${RECOG_EPOCHS}
+        grad_clip_norm: ${RECOG_GRAD_CLIP_NORM}
+      hooks:
+        tensorboard:
+          log_every_n_steps: ${RECOG_TB_LOG_EVERY_N_STEPS}
+          log_lr_every_n_steps: ${RECOG_TB_LOG_LR_EVERY_N_STEPS}
+          flush_every_n_steps: ${RECOG_TB_FLUSH_EVERY_N_STEPS}
+          log_histograms_every_n_steps: ${RECOG_TB_LOG_HIST_EVERY_N_STEPS}
+          max_modules: ${RECOG_TB_MAX_MODULES}
+          leaf_only: ${RECOG_TB_LEAF_ONLY}
+        nan_guard:
+          enabled: ${RECOG_NAN_GUARD_ENABLED}
+          check_inputs: ${RECOG_NAN_GUARD_CHECK_INPUTS}
+          check_outputs: ${RECOG_NAN_GUARD_CHECK_OUTPUTS}
+        grad_norm:
+          enabled: ${RECOG_GRAD_NORM_ENABLED}
+          module_names:
+            - ${RECOG_GRAD_NORM_MODULE_1}
+      io:
+        save_dir: ${RECOG_SAVE_DIR}
+        tensorboard_dir: ${RECOG_TENSORBOARD_DIR}
+        best_loss_checkpoint_name: best_loss.pt
+        best_cer_checkpoint_name: best_cer.pt

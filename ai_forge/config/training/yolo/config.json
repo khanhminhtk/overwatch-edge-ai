@@ -1,0 +1,29 @@
+{
+    "experiment": {
+        "name": "yolo11n",
+        "output_dir": "${PWD}/model_checkpoint/pt/yolo",
+        "seed": 42,
+        "device": "auto",
+        "deterministic_algorithms": false
+    },
+
+    "data": "data/object_detect/data.yaml",
+    "training": {
+        "epochs": 300,
+        "imgsz": 640,
+        "batch_size": 4,
+        "patience": 10,
+        "worker": 2
+    },
+    "optimizer_config": {
+        "optimizer": "adamw",
+        "lr0": 1e-3,
+        "weight_decay": 1e-4
+    },
+    "augment": true,
+    "save_config": {
+        "project": "${PWD}/model_checkpoint/pt/yolo",
+        "name": "exp",
+        "save_period": 1
+    }
+}
