@@ -54,7 +54,7 @@ class TorchBaseBackBone(nn.Module, BackBonePort):
 
     def _mark_backbone_modules_skip_init(self) -> None:
         for module in self.model_.modules():
-            setattr(module, "_skip_custom_init", None)
+            setattr(module, "_skip_custom_init", True)
 
     def freeze_feature_extractor(self) -> None:
         for param in self.model_.parameters():
