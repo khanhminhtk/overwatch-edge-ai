@@ -134,7 +134,12 @@ class MultiLatentAttention(nn.Module, AttentionPort):
         v = self._reshape_heads(uv) # [B, num_head, P, head_dim]
 
         if self.rope is not None:
-            sin, cos = self.rope(patch, device=x.device, has_cls_token=has_cls_token)
+            sin, cos = self.rope(
+                patch,
+                device=x.device,
+                has_cls_token=has_cls_token,
+                dtype=q.dtype,
+            )
             q, k = apply_rotary_pos_emb(
                 q=q,
                 k=k,

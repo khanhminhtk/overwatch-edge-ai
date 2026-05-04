@@ -37,7 +37,14 @@ class VisionTransformer(nn.Module, VisionTransformerPort):
             has_cls_token=has_cls_token,
         )
         moe_input = self.rms_norm_2(x)
-        moe_out, aux_loss = self.moe(moe_input)
+        try:
+            moe_result = self.moe(moe_input, return_aux_loss=True)
+        except TypeError:
+            moe_result = self.moe(moe_input)
+        if isinstance(moe_result, tuple):
+            moe_out, aux_loss = moe_result
+        else:
+            moe_out, aux_loss = moe_result, None
         x = x + moe_out
         return x, aux_loss
     
@@ -52,7 +59,9 @@ class VisionTransformers(nn.Module, VisionTransformerPort):
         moes: nn.ModuleList,
     ) -> None:
         super().__init__()
+        self._device = device
         self.backbone = backbone
+        self._d_model = d_model
         if len(attentions) != len(moes):
             raise ValueError(
                 f"attentions and moes must have the same length, got "
@@ -69,6 +78,14 @@ class VisionTransformers(nn.Module, VisionTransformerPort):
                 for attention, moe in zip(attentions, moes)
             ]
         )
+
+    @property
+    def d_model(self) -> int:
+        return self._d_model
+
+    @property
+    def device(self) -> torch.device:
+        return torch.device(self._device)
 
     def forward(
             self, 
