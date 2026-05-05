@@ -42,7 +42,7 @@ def _build_vocab_from_dataset(data_root: Path, train_split: str) -> list[str]:
     return vocab
 
 
-def _resolve_vocab(config_training: dict[str, Any], data_root: Path, train_split: str) -> list[str]:
+def resolve_vocab(config_training: dict[str, Any], data_root: Path, train_split: str) -> list[str]:
     vocab_cfg = config_training.get("vocab", {})
     mode = str(vocab_cfg.get("mode", "full")).strip().lower()
     full_charset = str(vocab_cfg.get("full_charset", "")).strip()
@@ -51,7 +51,7 @@ def _resolve_vocab(config_training: dict[str, Any], data_root: Path, train_split
     if mode == "auto":
         return observed_vocab
     if mode != "full":
-        raise ValueError(f"_resolve_vocab: unsupported vocab.mode '{mode}', expected 'full' or 'auto'")
+        raise ValueError(f"resolve_vocab: unsupported vocab.mode '{mode}', expected 'full' or 'auto'")
     if not full_charset:
         return observed_vocab
 
@@ -91,7 +91,7 @@ class TrainRecognizerOrchestration(TrainRecognizerUseCasePort):
         dataset_cfg = config_training["dataset"]
         data_root = Path(dataset_cfg["data_root"])
         train_split = str(dataset_cfg["train_split"])
-        vocab = _resolve_vocab(config_training=config_training, data_root=data_root, train_split=train_split)
+        vocab = resolve_vocab(config_training=config_training, data_root=data_root, train_split=train_split)
         encoder = CTCLabelEncoder(vocab=vocab)
 
         train_dataset, train_loader, val_dataset, val_loader = load_dataloader_vit_ctc(
