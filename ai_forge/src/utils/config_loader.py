@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from src.domain.value_objet.config import DomainConfig, RecognizerConfig
+from src.domain.value_objet.config_yolo import YoloConfig
 
 
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
@@ -129,3 +130,9 @@ class ConfigLoader:
 
         normalized["config_training"] = config_training
         return normalized
+
+    def load_yolo_config(self, config_relative_path: str = "config/training/yolo/config.yaml") -> YoloConfig:
+        config_path = self.project_root / config_relative_path
+        if not config_path.is_file():
+            raise ValueError(f"ConfigLoader.load_yolo_config: Config file not found: {config_path}")
+        return YoloConfig.from_yaml(config_path)
