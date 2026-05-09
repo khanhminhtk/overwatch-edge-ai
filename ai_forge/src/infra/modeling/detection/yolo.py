@@ -1,7 +1,7 @@
-import os
 from collections.abc import Iterable
 from logging import getLogger
 from pathlib import Path
+import shutil
 from typing import Any
 
 from ultralytics import YOLO
@@ -55,7 +55,7 @@ class YoloTrainer:
 
     def _resolve_model_source(self, finetune: bool) -> str:
         if finetune:
-            checkpoint = Path(self.config.save.project) / self.config.save.run_name / "weights" / "last.pt"
+            checkpoint = self._project_dir() / self.config.save.run_name / "weights" / "last.pt"
             if checkpoint.exists():
                 return str(checkpoint)
         weights = self.config.model.weights
@@ -130,31 +130,36 @@ class YoloTrainer:
     
     @property
     def best_weight_path(self) -> str:
-        return os.path.join(
-            self.config.save.project,
-            self.config.save.run_name,
-            "weights",
-            "best.pt"
-        )
+        return str(self._project_dir() / self.config.save.run_name / "weights" / "best.pt")
+
+    def _project_dir(self) -> Path:
+        return Path(self.config.save.project).expanduser().resolve()
+
+    def _export_to_path(self, export_path: str | Path, fmt: str) -> str:
+        if self._model is None:
+            self.load(finetune=False)
+        if self._model is None:
+            raise RuntimeError(f"Failed to initialize YOLO model before {fmt.upper()} export.")
+
+        export_path_obj = Path(export_path).expanduser().resolve()
+        export_path_obj.parent.mkdir(parents=True, exist_ok=True)
+
+        export_dir = export_path_obj.parent
+        run_name = export_path_obj.stem
+        exported = self._model.export(format=fmt, project=str(export_dir), name=run_name, exist_ok=True)
+        produced = Path(str(exported)).expanduser().resolve()
+        if not produced.exists():
+            raise RuntimeError(f"Cannot locate exported .{fmt} artifact: {produced}")
+        if produced.resolve() != export_path_obj:
+            shutil.move(str(produced), str(export_path_obj))
+        return str(export_path_obj)
 
     def export_onnx(self, export_path: str | Path) -> str:
-        if self._model is None:
-            self.load(finetune=False)
-        if self._model is None:
-            raise RuntimeError("Failed to initialize YOLO model before ONNX export.")
-        export_path_obj = Path(export_path)
-        export_path_obj.parent.mkdir(parents=True, exist_ok=True)
-        self._model.export(format="onnx", path=str(export_path_obj))
-        LOGGER.info("Model exported to ONNX format at %s", export_path_obj)
-        return str(export_path_obj)
+        exported_path = self._export_to_path(export_path=export_path, fmt="onnx")
+        LOGGER.info("Model exported to ONNX format at %s", exported_path)
+        return exported_path
     
     def export_tensorrt(self, export_path: str | Path) -> str:
-        if self._model is None:
-            self.load(finetune=False)
-        if self._model is None:
-            raise RuntimeError("Failed to initialize YOLO model before TensorRT export.")
-        export_path_obj = Path(export_path)
-        export_path_obj.parent.mkdir(parents=True, exist_ok=True)
-        self._model.export(format="engine", path=str(export_path_obj))
-        LOGGER.info("Model exported to TensorRT format at %s", export_path_obj)
-        return str(export_path_obj)
+        exported_path = self._export_to_path(export_path=export_path, fmt="engine")
+        LOGGER.info("Model exported to TensorRT format at %s", exported_path)
+        return exported_path

@@ -5,12 +5,14 @@ from pathlib import Path
 import pytest
 
 from src.domain.value_objet.config import DomainConfig, RecognizerConfig
+from src.domain.value_objet.config_yolo import DEFAULT_YOLO_CONFIG_PATH, YoloConfig
 from src.utils.config_loader import ConfigLoader
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ENV_RELATIVE_PATH = "config/.env"
 RECOGNIZER_YAML = "config/training/recognizer_ctc.yaml"
+YOLO_YAML = "config/training/yolo/config.yaml"
 
 
 def _loader() -> ConfigLoader:
@@ -57,3 +59,19 @@ def test_load_recognizer_raises_for_wrong_arch_path() -> None:
     )
     with pytest.raises(ValueError, match="Cannot find recognizer architecture config"):
         wrong_loader.load_recognizer()
+
+
+def test_load_yolo_config_from_real_file_returns_dataclass() -> None:
+    yolo_cfg = _loader().load_yolo_config(YOLO_YAML)
+
+    assert isinstance(yolo_cfg, YoloConfig)
+    assert yolo_cfg.model.weights
+    assert yolo_cfg.training.epochs > 0
+    assert yolo_cfg.data.config
+
+
+def test_load_yolo_config_with_default_path() -> None:
+    yolo_cfg = YoloConfig.from_yaml(DEFAULT_YOLO_CONFIG_PATH)
+
+    assert isinstance(yolo_cfg, YoloConfig)
+    assert yolo_cfg.save.project

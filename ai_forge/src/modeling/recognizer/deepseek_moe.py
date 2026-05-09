@@ -180,12 +180,11 @@ class DeepSeekMOE(nn.Module):
         expert_prob_mean = routing_weights.mean(dim=0)
 
         expert_indices = top_k_indices.reshape(-1)
-
-        expert_density = torch.bincount(
+        one_hot = F.one_hot(
             expert_indices,
-            minlength=self.n_routed_experts,
+            num_classes=self.n_routed_experts,
         ).to(dtype=expert_prob_mean.dtype)
-
+        expert_density = one_hot.sum(dim=0)
         expert_density = expert_density / (num_tokens * self.top_k)
 
         aux_loss = self.n_routed_experts * torch.sum(

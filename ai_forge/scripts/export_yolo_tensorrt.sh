@@ -12,7 +12,7 @@ cd "${PROJECT_ROOT}"
 export PYTHONPATH="${PROJECT_ROOT}:${PYTHONPATH:-}"
 export WEIGHTS_PATH OUTPUT_ENGINE_PATH YOLO_CONFIG_PATH
 
-uv run python - <<'PY'
+"${PROJECT_ROOT}/.venv/bin/python" - <<'PY'
 from pathlib import Path
 import os
 

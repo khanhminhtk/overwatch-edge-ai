@@ -143,6 +143,23 @@ def load_yolo_config(config_path: str | Path = DEFAULT_YOLO_CONFIG_PATH) -> Yolo
 
 class YoloArgsAdapter:
     @staticmethod
+    def _resolve_project_path(project: str) -> str:
+        return str(Path(project).expanduser().resolve())
+
+    @staticmethod
+    def _resolve_device(device: str) -> str:
+        normalized = device.strip().lower()
+        if normalized != "auto":
+            return device
+
+        try:
+            import torch
+        except Exception:
+            return "cpu"
+
+        return "0" if torch.cuda.is_available() else "cpu"
+
+    @staticmethod
     def to_train_kwargs(config: YoloConfig, **overrides: Any) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "data": config.data.config,
@@ -164,14 +181,14 @@ class YoloArgsAdapter:
             "warmup_momentum": config.optimizer.warmup_momentum,
             "warmup_bias_lr": config.optimizer.warmup_bias_lr,
             "cos_lr": config.optimizer.cos_lr,
-            "project": config.save.project,
+            "project": YoloArgsAdapter._resolve_project_path(config.save.project),
             "name": config.save.run_name,
             "exist_ok": config.save.exist_ok,
             "save": config.save.save,
             "save_period": config.save.save_period,
             "plots": config.save.plots,
             "cache": config.data.cache,
-            "device": config.experiment.device,
+            "device": YoloArgsAdapter._resolve_device(config.experiment.device),
             "seed": config.experiment.seed,
             "deterministic": config.experiment.deterministic,
         }
@@ -200,13 +217,13 @@ class YoloArgsAdapter:
     def to_val_kwargs(config: YoloConfig, **overrides: Any) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "data": config.data.config,
-            "project": config.save.project,
+            "project": YoloArgsAdapter._resolve_project_path(config.save.project),
             "name": config.save.run_name,
             "exist_ok": config.save.exist_ok,
             "imgsz": config.training.imgsz,
             "batch": config.training.batch,
             "workers": config.training.workers,
-            "device": config.experiment.device,
+            "device": YoloArgsAdapter._resolve_device(config.experiment.device),
             "conf": config.evaluation.conf,
             "iou": config.evaluation.iou,
             "max_det": config.evaluation.max_det,

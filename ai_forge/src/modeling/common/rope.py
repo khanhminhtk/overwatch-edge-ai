@@ -73,10 +73,11 @@ class ROPE(nn.Module):
         sin = self.sin_cached[:, :, :seq_len, :]
         cos = self.cos_cached[:, :, :seq_len, :]
 
-        if has_cls_token is not None and has_cls_token != self.has_cls_token:
+        has_cls_token_resolved = self.has_cls_token if has_cls_token is None else bool(has_cls_token)
+        if has_cls_token_resolved != self.has_cls_token:
             idx = torch.arange(0, self.dim, 2, dtype=torch.float32, device=sin.device) / self.dim
             theta = 1.0 / (self.base ** idx)
-            if has_cls_token:
+            if has_cls_token_resolved:
                 if seq_len == 1:
                     position_ids = torch.zeros(1, dtype=torch.float32, device=sin.device)
                 else:

@@ -77,6 +77,9 @@ class SwiGLU(nn.Module, CacheableActivationPort):
         else:
             self.cache.clear()
 
+        if torch.onnx.is_in_onnx_export():
+            return (out_w_1 * torch.sigmoid(out_w_1)) * out_w_2
+
         return _SwiGLUFunction.apply(out_w_1, out_w_2)
 
     def extra_repr(self) -> str:

@@ -11,6 +11,14 @@ PRECISION="${4:-fp16}"  # fp32 | fp16 | int8
 CONFIG_PATH="${5:-config/training/recognizer_ctc.yaml}"
 
 cd "${PROJECT_ROOT}"
+
+PYTHON_BIN="${PROJECT_ROOT}/.venv_python/bin/python"
+
+if [[ ! -x "${PYTHON_BIN}" ]]; then
+  echo "Error: Python venv not found at ${PYTHON_BIN}" >&2
+  exit 1
+fi
+
 export PYTHONPATH="${PROJECT_ROOT}:${PYTHONPATH:-}"
 export CONFIG_PATH
 
@@ -19,28 +27,36 @@ if ! command -v trtexec >/dev/null 2>&1; then
   exit 1
 fi
 
-uv run -m src.infra.onnx.export_recognizer_onnx \
+"${PYTHON_BIN}" -m src.infra.onnx.export_recognizer_onnx \
   --checkpoint "${CHECKPOINT_PATH}" \
   --output "${ONNX_PATH}" \
   --config "${CONFIG_PATH}"
 
 mkdir -p "$(dirname "${ENGINE_PATH}")"
 
-read -r NUM_PATCHES PATCH_H PATCH_W <<< "$(uv run python - <<'PY'
+read -r NUM_PATCHES PATCH_H PATCH_W <<< "$("${PYTHON_BIN}" - <<'PY'
+import os
 from src.utils.config_loader import ConfigLoader
+
 loader = ConfigLoader(
-    yaml_relative_paths=[__import__("os").environ["CONFIG_PATH"]],
+    yaml_relative_paths=[os.environ["CONFIG_PATH"]],
     env_relative_path="config/.env",
 )
+
 cfg = loader.load_recognizer().config_training["dataset"]
+
 num_patches = int(cfg.get("num_patches", 16))
-patch_h = int(cfg.get("patch_size", [64, 64])[0])
-patch_w = int(cfg.get("patch_size", [64, 64])[1])
+patch_size = cfg.get("patch_size", [64, 64])
+
+patch_h = int(patch_size[0])
+patch_w = int(patch_size[1])
+
 print(num_patches, patch_h, patch_w)
 PY
 )"
 
 TRT_FLAGS=()
+
 case "${PRECISION}" in
   fp16)
     TRT_FLAGS+=(--fp16)

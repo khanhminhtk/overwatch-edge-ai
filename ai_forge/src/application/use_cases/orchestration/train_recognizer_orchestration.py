@@ -46,26 +46,15 @@ def resolve_vocab(config_training: dict[str, Any], data_root: Path, train_split:
     vocab_cfg = config_training.get("vocab", {})
     mode = str(vocab_cfg.get("mode", "full")).strip().lower()
     full_charset = str(vocab_cfg.get("full_charset", "")).strip()
-    observed_vocab = _build_vocab_from_dataset(data_root=data_root, train_split=train_split)
 
     if mode == "auto":
-        return observed_vocab
+        return _build_vocab_from_dataset(data_root=data_root, train_split=train_split)
     if mode != "full":
         raise ValueError(f"resolve_vocab: unsupported vocab.mode '{mode}', expected 'full' or 'auto'")
     if not full_charset:
-        return observed_vocab
+        return _build_vocab_from_dataset(data_root=data_root, train_split=train_split)
 
     resolved_vocab = list(dict.fromkeys(full_charset))
-    if len(observed_vocab) > 0:
-        ratio = len(resolved_vocab) / len(observed_vocab)
-        if ratio >= 1.5:
-            LOGGER.warning(
-                "Configured full vocab is much larger than observed train charset (%s vs %s, ratio=%.2f). "
-                "This can increase CTC blank-collapse risk.",
-                len(resolved_vocab),
-                len(observed_vocab),
-                ratio,
-            )
     return resolved_vocab
 
 

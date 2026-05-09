@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 import torch
+from torch.nn.parameter import UninitializedParameter
 
 from src.infra.onnx.clear_pt import load_recognizer_pt
 from src.utils.config_loader import ConfigLoader
@@ -37,21 +38,41 @@ def export_recognizer_to_onnx(
     out_path = Path(output_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
+    has_uninitialized_params = any(
+        isinstance(param, UninitializedParameter) for param in model.parameters()
+    )
+    if has_uninitialized_params:
+        with torch.no_grad():
+            model(dummy_input)
+
+    export_kwargs = dict(
+        export_params=True,
+        opset_version=17,
+        do_constant_folding=True,
+        input_names=["images"],
+        output_names=["logits", "aux_loss"],
+        dynamic_axes={
+            "images": {0: "batch_size", 1: "num_patches"},
+            "logits": {0: "batch_size", 1: "num_patches"},
+        },
+    )
+
     with torch.no_grad():
-        torch.onnx.export(
-            model,
-            dummy_input,
-            str(out_path),
-            export_params=True,
-            opset_version=17,
-            do_constant_folding=True,
-            input_names=["images"],
-            output_names=["logits", "aux_loss"],
-            dynamic_axes={
-                "images": {0: "batch_size", 1: "num_patches"},
-                "logits": {0: "batch_size", 1: "num_patches"},
-            },
-        )
+        try:
+            torch.onnx.export(
+                model,
+                dummy_input,
+                str(out_path),
+                dynamo=True,
+                **export_kwargs,
+            )
+        except Exception:
+            torch.onnx.export(
+                model,
+                dummy_input,
+                str(out_path),
+                **export_kwargs,
+            )
     return str(out_path)
 
 

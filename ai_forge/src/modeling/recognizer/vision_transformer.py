@@ -7,6 +7,23 @@ from src.domain.ports.recognizer.vision_transformer import VisionTransformerPort
 from src.domain.ports.recognizer.backbone_port import BackBonePort
 from src.domain.ports.recognizer.recognizer_component_ports import AttentionPort, MoEPort
 
+
+class RMSNormExportable(nn.Module):
+    def __init__(self, d_model: int, eps: float = 1e-5) -> None:
+        super().__init__()
+        if d_model <= 0:
+            raise ValueError(f"RMSNormExportable.__init__: d_model must be > 0, got {d_model}")
+        self.eps = eps
+        self.weight = nn.Parameter(torch.ones(d_model))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x_fp32 = x.float()
+        rms = torch.rsqrt(x_fp32.pow(2).mean(dim=-1, keepdim=True) + self.eps)
+        y = x_fp32 * rms
+        y = y.to(dtype=x.dtype)
+        return y * self.weight
+
+
 class VisionTransformer(nn.Module, VisionTransformerPort):
     def __init__(
         self,
@@ -20,8 +37,8 @@ class VisionTransformer(nn.Module, VisionTransformerPort):
         self.moe = moe
         self._device = device
         self.d_model = d_model
-        self.rms_norm_1 = nn.RMSNorm(d_model)
-        self.rms_norm_2 = nn.RMSNorm(d_model)
+        self.rms_norm_1 = RMSNormExportable(d_model)
+        self.rms_norm_2 = RMSNormExportable(d_model)
 
     def forward(
             self, 
