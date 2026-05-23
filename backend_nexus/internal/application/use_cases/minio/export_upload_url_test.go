@@ -63,13 +63,13 @@ func uploadTestLogger(t *testing.T) utils.Logger {
 
 func TestExportUploadURLUseCase_Execute_UsesValidCache(t *testing.T) {
 	mockStorage := &mockUploadObjectStorage{uploadURL: "https://new.example.com/upload"}
-	uc := NewExportUploadURLUseCase(mockStorage, uploadTestLogger(t))
+	uc := NewExportUploadURLUseCase(mockStorage, uploadTestLogger(t), 600)
 	request := minio.CreateUploadURLRequest{
 		BucketName: "bucket-a",
 		ObjectName: "obj.txt",
 		RequestID:  "req-1",
 	}
-	uc.cachesManager.caches["bucket-a-obj.txt"] = UrlCache{
+	uc.cachesManager.caches[buildUploadCacheKey("bucket-a", "obj.txt")] = UrlCache{
 		bucketName: "bucket-a",
 		objectName: "obj.txt",
 		url:        "https://cached.example.com/upload",
@@ -93,13 +93,13 @@ func TestExportUploadURLUseCase_Execute_UsesValidCache(t *testing.T) {
 
 func TestExportUploadURLUseCase_Execute_CacheExpiredCreatesNewURL(t *testing.T) {
 	mockStorage := &mockUploadObjectStorage{uploadURL: "https://new.example.com/upload"}
-	uc := NewExportUploadURLUseCase(mockStorage, uploadTestLogger(t))
+	uc := NewExportUploadURLUseCase(mockStorage, uploadTestLogger(t), 300)
 	request := minio.CreateUploadURLRequest{
 		BucketName: "bucket-a",
 		ObjectName: "obj.txt",
 		RequestID:  "req-2",
 	}
-	uc.cachesManager.caches["bucket-a-obj.txt"] = UrlCache{
+	uc.cachesManager.caches[buildUploadCacheKey("bucket-a", "obj.txt")] = UrlCache{
 		bucketName: "bucket-a",
 		objectName: "obj.txt",
 		url:        "https://old.example.com/upload",
@@ -119,14 +119,14 @@ func TestExportUploadURLUseCase_Execute_CacheExpiredCreatesNewURL(t *testing.T) 
 	if mockStorage.createUploadCall != 1 {
 		t.Fatalf("expected CreateUploadURL called once, got %d", mockStorage.createUploadCall)
 	}
-	if mockStorage.lastBucket != "bucket-a" || mockStorage.lastObject != "obj.txt" || mockStorage.lastExpires != 600 {
+	if mockStorage.lastBucket != "bucket-a" || mockStorage.lastObject != "obj.txt" || mockStorage.lastExpires != 300 {
 		t.Fatalf("unexpected call args: bucket=%s object=%s expires=%d", mockStorage.lastBucket, mockStorage.lastObject, mockStorage.lastExpires)
 	}
 }
 
 func TestExportUploadURLUseCase_Execute_CreateUploadURLError(t *testing.T) {
 	mockStorage := &mockUploadObjectStorage{uploadErr: errors.New("minio failed")}
-	uc := NewExportUploadURLUseCase(mockStorage, uploadTestLogger(t))
+	uc := NewExportUploadURLUseCase(mockStorage, uploadTestLogger(t), 600)
 	request := minio.CreateUploadURLRequest{
 		BucketName: "bucket-a",
 		ObjectName: "obj.txt",

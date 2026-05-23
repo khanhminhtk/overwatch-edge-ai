@@ -27,26 +27,32 @@ type ExportDownloadURLUseCase struct {
 	ObjectStorage ports.ObjectStorage
 	Logger        utils.Logger
 	cachesManager *DownloadURLManager
+	expiresInSec  int64
 }
 
-func NewExportDownloadURLUseCase(objectStorage ports.ObjectStorage, logger utils.Logger) *ExportDownloadURLUseCase {
+func buildDownloadCacheKey(bucketName, objectName string) string {
+	return fmt.Sprintf("%d:%s|%d:%s", len(bucketName), bucketName, len(objectName), objectName)
+}
+
+func NewExportDownloadURLUseCase(objectStorage ports.ObjectStorage, logger utils.Logger, expiresInSec int64) *ExportDownloadURLUseCase {
 	return &ExportDownloadURLUseCase{
 		ObjectStorage: objectStorage,
 		Logger:        logger,
 		cachesManager: &DownloadURLManager{
 			caches: make(map[string]DownloadURLCache),
 		},
+		expiresInSec: expiresInSec,
 	}
 }
 
 func (u *ExportDownloadURLUseCase) Execute(ctx context.Context, request minio.CreateDownloadURLRequest) (minio.CreateDownloadURLResponse, error) {
-	cacheKey := request.BucketName + "-" + request.ObjectName
+	cacheKey := buildDownloadCacheKey(request.BucketName, request.ObjectName)
 	u.cachesManager.mu.RLock()
 	cachedData, exists := u.cachesManager.caches[cacheKey]
 	u.cachesManager.mu.RUnlock()
 
 	if exists && cachedData.url != "" {
-		if time.Since(cachedData.createdAt) < 9*time.Minute {
+		if time.Since(cachedData.createdAt) < time.Duration(u.expiresInSec)*time.Second {
 			u.Logger.Debug("Found valid cached download URL", "bucket", request.BucketName, "object", request.ObjectName, "request_id", request.RequestID)
 			return minio.CreateDownloadURLResponse{
 				URL:    cachedData.url,
@@ -56,7 +62,7 @@ func (u *ExportDownloadURLUseCase) Execute(ctx context.Context, request minio.Cr
 		u.Logger.Warn("Cached download URL expired, rotating", "bucket", request.BucketName, "object", request.ObjectName, "request_id", request.RequestID)
 	}
 
-	presignedURL, err := u.ObjectStorage.CreatePresignedURL(ctx, request.BucketName, request.ObjectName, 600)
+	presignedURL, err := u.ObjectStorage.CreatePresignedURL(ctx, request.BucketName, request.ObjectName, u.expiresInSec)
 	if err != nil {
 		u.Logger.Error("Failed to create download URL via MinIO SDK", "bucket", request.BucketName, "object", request.ObjectName, "request_id", request.RequestID, "error", err)
 		return minio.CreateDownloadURLResponse{

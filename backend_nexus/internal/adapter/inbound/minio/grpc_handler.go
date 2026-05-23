@@ -58,6 +58,12 @@ func (h *MinioGRPCServerHandler) Validate() error {
 	if h.ConfigServiceGRPC.ExpiresTimeAccessToken <= 0 {
 		return fmt.Errorf("access token ttl must be > 0")
 	}
+	if h.ConfigServiceGRPC.ExpiresTimeURLUpload <= 0 {
+		return fmt.Errorf("upload url ttl must be > 0")
+	}
+	if h.ConfigServiceGRPC.ExpiresTimeURLDownload <= 0 {
+		return fmt.Errorf("download url ttl must be > 0")
+	}
 	return nil
 }
 

@@ -110,7 +110,7 @@ func TestCreatePresignedURL_ErrorFromClient(t *testing.T) {
 func TestCreatePresignedURL_InvalidExpires(t *testing.T) {
 	storage := NewMinioObjectStorage(newUnreachableMinioClient(t), nil)
 	_, err := storage.CreatePresignedURL(context.Background(), "bucket-a", "obj.txt", -1)
-	if err == nil || !strings.Contains(err.Error(), "failed to create presigned URL") {
+	if err == nil || !strings.Contains(err.Error(), "invalid expiresInSeconds") {
 		t.Fatalf("expected presigned url error for invalid expiration, got %v", err)
 	}
 }
@@ -128,5 +128,21 @@ func TestRemoveObject_ErrorFromClient(t *testing.T) {
 	err := storage.RemoveObject(context.Background(), "bucket-a", "obj.txt")
 	if err == nil || !strings.Contains(err.Error(), "failed to remove object") {
 		t.Fatalf("expected wrapped client error, got %v", err)
+	}
+}
+
+func TestCreateUploadURL_ContextCanceled(t *testing.T) {
+	storage := &MinioObjectStorage{}
+	_, err := storage.CreateUploadURL(canceledContext(), "bucket-a", "obj.txt", 60)
+	if err == nil || !strings.Contains(err.Error(), "context error") {
+		t.Fatalf("expected context error, got %v", err)
+	}
+}
+
+func TestCreateUploadURL_InvalidExpires(t *testing.T) {
+	storage := NewMinioObjectStorage(newUnreachableMinioClient(t), nil)
+	_, err := storage.CreateUploadURL(context.Background(), "bucket-a", "obj.txt", 0)
+	if err == nil || !strings.Contains(err.Error(), "invalid expiresInSeconds") {
+		t.Fatalf("expected invalid expires error, got %v", err)
 	}
 }

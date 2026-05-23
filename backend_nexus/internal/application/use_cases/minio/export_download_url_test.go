@@ -63,13 +63,13 @@ func testLogger(t *testing.T) utils.Logger {
 
 func TestExportDownloadURLUseCase_Execute_UsesValidCache(t *testing.T) {
 	mockStorage := &mockObjectStorage{presignedURL: "https://new.example.com/url"}
-	uc := NewExportDownloadURLUseCase(mockStorage, testLogger(t))
+	uc := NewExportDownloadURLUseCase(mockStorage, testLogger(t), 600)
 	request := minio.CreateDownloadURLRequest{
 		BucketName: "bucket-a",
 		ObjectName: "obj.txt",
 		RequestID:  "req-1",
 	}
-	uc.cachesManager.caches["bucket-a-obj.txt"] = DownloadURLCache{
+	uc.cachesManager.caches[buildDownloadCacheKey("bucket-a", "obj.txt")] = DownloadURLCache{
 		bucketName: "bucket-a",
 		objectName: "obj.txt",
 		url:        "https://cached.example.com/url",
@@ -93,13 +93,13 @@ func TestExportDownloadURLUseCase_Execute_UsesValidCache(t *testing.T) {
 
 func TestExportDownloadURLUseCase_Execute_CacheExpiredCreatesNewURL(t *testing.T) {
 	mockStorage := &mockObjectStorage{presignedURL: "https://new.example.com/url"}
-	uc := NewExportDownloadURLUseCase(mockStorage, testLogger(t))
+	uc := NewExportDownloadURLUseCase(mockStorage, testLogger(t), 300)
 	request := minio.CreateDownloadURLRequest{
 		BucketName: "bucket-a",
 		ObjectName: "obj.txt",
 		RequestID:  "req-2",
 	}
-	uc.cachesManager.caches["bucket-a-obj.txt"] = DownloadURLCache{
+	uc.cachesManager.caches[buildDownloadCacheKey("bucket-a", "obj.txt")] = DownloadURLCache{
 		bucketName: "bucket-a",
 		objectName: "obj.txt",
 		url:        "https://old.example.com/url",
@@ -119,14 +119,14 @@ func TestExportDownloadURLUseCase_Execute_CacheExpiredCreatesNewURL(t *testing.T
 	if mockStorage.createPresignedCall != 1 {
 		t.Fatalf("expected CreatePresignedURL called once, got %d", mockStorage.createPresignedCall)
 	}
-	if mockStorage.lastBucket != "bucket-a" || mockStorage.lastObject != "obj.txt" || mockStorage.lastExpires != 600 {
+	if mockStorage.lastBucket != "bucket-a" || mockStorage.lastObject != "obj.txt" || mockStorage.lastExpires != 300 {
 		t.Fatalf("unexpected call args: bucket=%s object=%s expires=%d", mockStorage.lastBucket, mockStorage.lastObject, mockStorage.lastExpires)
 	}
 }
 
 func TestExportDownloadURLUseCase_Execute_CreatePresignedURLError(t *testing.T) {
 	mockStorage := &mockObjectStorage{presignedErr: errors.New("minio failed")}
-	uc := NewExportDownloadURLUseCase(mockStorage, testLogger(t))
+	uc := NewExportDownloadURLUseCase(mockStorage, testLogger(t), 600)
 	request := minio.CreateDownloadURLRequest{
 		BucketName: "bucket-a",
 		ObjectName: "obj.txt",

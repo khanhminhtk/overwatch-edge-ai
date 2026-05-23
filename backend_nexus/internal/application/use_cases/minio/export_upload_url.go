@@ -16,7 +16,7 @@ type UrlCache struct {
 	objectName string
 	url        string
 	createdAt  time.Time
-} 
+}
 
 type UploadURLManager struct {
 	mu     sync.RWMutex
@@ -27,26 +27,32 @@ type ExportUploadURLUseCase struct {
 	ObjectStorage ports.ObjectStorage
 	Logger        utils.Logger
 	cachesManager *UploadURLManager
+	expiresInSec  int64
 }
 
-func NewExportUploadURLUseCase(objectStorage ports.ObjectStorage, logger utils.Logger) *ExportUploadURLUseCase {
+func buildUploadCacheKey(bucketName, objectName string) string {
+	return fmt.Sprintf("%d:%s|%d:%s", len(bucketName), bucketName, len(objectName), objectName)
+}
+
+func NewExportUploadURLUseCase(objectStorage ports.ObjectStorage, logger utils.Logger, expiresInSec int64) *ExportUploadURLUseCase {
 	return &ExportUploadURLUseCase{
 		ObjectStorage: objectStorage,
 		Logger:        logger,
 		cachesManager: &UploadURLManager{
 			caches: make(map[string]UrlCache),
 		},
+		expiresInSec: expiresInSec,
 	}
 }
 
 func (u *ExportUploadURLUseCase) Execute(ctx context.Context, request minio.CreateUploadURLRequest) (minio.CreateUploadURLResponse, error) {
-	cacheKey := request.BucketName + "-" + request.ObjectName
+	cacheKey := buildUploadCacheKey(request.BucketName, request.ObjectName)
 	u.cachesManager.mu.RLock()
 	cachedData, exists := u.cachesManager.caches[cacheKey]
 	u.cachesManager.mu.RUnlock()
 
 	if exists && cachedData.url != "" {
-		if time.Since(cachedData.createdAt) < 9*time.Minute { 
+		if time.Since(cachedData.createdAt) < time.Duration(u.expiresInSec)*time.Second {
 			u.Logger.Debug("Found valid cached upload URL", "bucket", request.BucketName, "object", request.ObjectName, "request_id", request.RequestID)
 			return minio.CreateUploadURLResponse{
 				URL:    cachedData.url,
@@ -56,7 +62,7 @@ func (u *ExportUploadURLUseCase) Execute(ctx context.Context, request minio.Crea
 		u.Logger.Warn("Cached upload URL expired, rotating", "bucket", request.BucketName, "object", request.ObjectName, "request_id", request.RequestID)
 	}
 
-	presignedURL, err := u.ObjectStorage.CreateUploadURL(ctx, request.BucketName, request.ObjectName, 600)
+	presignedURL, err := u.ObjectStorage.CreateUploadURL(ctx, request.BucketName, request.ObjectName, u.expiresInSec)
 	if err != nil {
 		u.Logger.Error("Failed to create upload URL via MinIO SDK", "bucket", request.BucketName, "object", request.ObjectName, "request_id", request.RequestID, "error", err)
 		return minio.CreateUploadURLResponse{

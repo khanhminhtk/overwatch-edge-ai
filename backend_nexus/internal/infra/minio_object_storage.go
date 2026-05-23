@@ -120,6 +120,13 @@ func (m *MinioObjectStorage) CreatePresignedURL(ctx context.Context, bucketName 
 	if err := ctx.Err(); err != nil {
 		return "", m.wrapError("internal.infra.minioObjectStorage.CreatePresignedURL: context error", err)
 	}
+	if expiresInSeconds <= 0 {
+		return "", m.wrapError(
+			"internal.infra.minioObjectStorage.CreatePresignedURL: invalid expiresInSeconds=%d",
+			fmt.Errorf("expiresInSeconds must be > 0"),
+			expiresInSeconds,
+		)
+	}
 
 	reqParams := make(url.Values)
 	presignedURL, err := m.Client.PresignedGetObject(
@@ -164,11 +171,18 @@ func (m *MinioObjectStorage) CreateUploadURL(ctx context.Context, bucketName str
 	if err := ctx.Err(); err != nil {
 		return "", m.wrapError("internal.infra.minioObjectStorage.CreateUploadURL: context error", err)
 	}
-	expiry := time.Duration(10) * time.Minute
+	if expiresInSeconds <= 0 {
+		return "", m.wrapError(
+			"internal.infra.minioObjectStorage.CreateUploadURL: invalid expiresInSeconds=%d",
+			fmt.Errorf("expiresInSeconds must be > 0"),
+			expiresInSeconds,
+		)
+	}
+	expiry := time.Duration(expiresInSeconds) * time.Second
 
 	presignedUrl, err := m.Client.PresignedPutObject(
-		bucketName, 
-		objectName, 
+		bucketName,
+		objectName,
 		expiry,
 	)
 	if err != nil {

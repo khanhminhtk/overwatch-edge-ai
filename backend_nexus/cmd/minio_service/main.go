@@ -26,8 +26,16 @@ import (
 )
 
 func startMinioService(objectStorage *infra.MinioObjectStorage, cfg *configInfra.Minio, logger *utils.Logger) error {
-	uploadURLUseCase := usecasesMinio.NewExportUploadURLUseCase(objectStorage, *logger)
-	downloadURLUseCase := usecasesMinio.NewExportDownloadURLUseCase(objectStorage, *logger)
+	uploadURLUseCase := usecasesMinio.NewExportUploadURLUseCase(
+		objectStorage,
+		*logger,
+		cfg.MinioServer.ConfigServiceGRPC.ExpiresTimeURLUpload,
+	)
+	downloadURLUseCase := usecasesMinio.NewExportDownloadURLUseCase(
+		objectStorage,
+		*logger,
+		cfg.MinioServer.ConfigServiceGRPC.ExpiresTimeURLDownload,
+	)
 	minioService := inboundMinio.NewMinioGRPCServerHandler(
 		*objectStorage,
 		*logger,
@@ -58,8 +66,8 @@ func startMinioService(objectStorage *infra.MinioObjectStorage, cfg *configInfra
 	keyFile := "certs/server.key"
 	creds, tlsErr := credentials.NewServerTLSFromFile(certFile, keyFile)
 	if tlsErr != nil {
-			return fmt.Errorf("failed to create TLS credentials: %w", tlsErr)
-		}
+		return fmt.Errorf("failed to create TLS credentials: %w", tlsErr)
+	}
 	serverOptions = append(serverOptions, grpc.Creds(creds))
 	grpcServer := grpc.NewServer(serverOptions...)
 	healthServer := grpcHealth.NewServer()
@@ -103,14 +111,14 @@ func startMinioService(objectStorage *infra.MinioObjectStorage, cfg *configInfra
 	}
 }
 
-func main() {
+func runWithPaths(configPath, envPath string) error {
 	configLoader := utils.NewConfigLoader[configInfra.Minio](
-		"config/minio_config.yaml",
-		"config/.env",
+		configPath,
+		envPath,
 	)
 	cfg, err := configLoader.LoadConfig()
 	if err != nil {
-		panic("Failed to load config: " + err.Error())
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 	configLogger := utils.ConfigLogger{
 		Level:   "debug",
@@ -122,13 +130,25 @@ func main() {
 
 	minioClient, err := infra.NewMinioClient(cfg.MinioServer)
 	if err != nil {
-		panic("Failed to create Minio client: " + err.Error())
+		return fmt.Errorf("failed to create Minio client: %w", err)
 	}
 
 	minioStorage := infra.NewMinioObjectStorage(minioClient, logger)
 
 	if err := startMinioService(minioStorage, cfg, logger); err != nil {
 		logger.Error("Minio service stopped with error", "error", err)
-		panic(err)
+		return err
+	}
+	return nil
+}
+
+func run() error {
+	return runWithPaths("config/minio_config.yaml", "config/.env")
+}
+
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }
