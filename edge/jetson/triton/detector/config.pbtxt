@@ -1,0 +1,45 @@
+name: "detector"
+backend: "python"
+max_batch_size: 16
+
+input [
+  {
+    name: "IMAGE"
+    data_type: TYPE_FP32
+    dims: [ 3, 640, 640 ]
+  }
+]
+
+output [
+  {
+    name: "BOXES"
+    data_type: TYPE_FP32
+    dims: [ 8, 4 ]
+  },
+  {
+    name: "SCORES"
+    data_type: TYPE_FP32
+    dims: [ 8 ]
+  },
+  {
+    name: "CLASS_IDS"
+    data_type: TYPE_INT32
+    dims: [ 8 ]
+  },
+  {
+    name: "DETECTIONS"
+    data_type: TYPE_INT32
+    dims: [ 1 ]
+  }
+]
+
+instance_group [
+  {
+    kind: KIND_CPU
+  }
+]
+
+parameters: {
+  key: "max_detections"
+  value: { string_value: "8" }
+}

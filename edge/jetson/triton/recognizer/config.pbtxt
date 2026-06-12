@@ -1,0 +1,40 @@
+name: "recognizer"
+backend: "python"
+max_batch_size: 32
+
+input [
+  {
+    name: "CROPS"
+    data_type: TYPE_FP32
+    dims: [ 3, 48, 160 ]
+  }
+]
+
+output [
+  {
+    name: "TEXT"
+    data_type: TYPE_STRING
+    dims: [ 1 ]
+  },
+  {
+    name: "CONFIDENCE"
+    data_type: TYPE_FP32
+    dims: [ 1 ]
+  },
+  {
+    name: "LOGITS"
+    data_type: TYPE_FP32
+    dims: [ 12, 37 ]
+  }
+]
+
+instance_group [
+  {
+    kind: KIND_CPU
+  }
+]
+
+parameters: {
+  key: "sequence_length"
+  value: { string_value: "12" }
+}

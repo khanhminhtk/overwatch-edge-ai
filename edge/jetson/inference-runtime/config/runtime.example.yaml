@@ -1,0 +1,6 @@
+triton:
+  grpc_url: "localhost:8001"
+  detector_model_name: "detector"
+  recognizer_model_name: "recognizer"
+
+source: "0"
