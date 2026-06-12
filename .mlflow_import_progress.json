@@ -1,0 +1,28 @@
+{
+  "run_id": "5caaf2a4a0db4c8db787243761a915d5",
+  "done_phases": [
+    "artifact_best_cer_checkpoint",
+    "artifact_best_loss_checkpoint",
+    "artifact_dataset_zip",
+    "artifact_last_checkpoint",
+    "artifact_manifest",
+    "artifact_tensorboard_dir",
+    "logged_model",
+    "params",
+    "selected_metrics",
+    "summary_metrics",
+    "tags",
+    "tensorboard_metrics",
+    "text_environment",
+    "text_evaluation",
+    "text_import_summary",
+    "text_lineage",
+    "text_manifest_preview",
+    "text_model_card",
+    "text_predictions",
+    "text_production_summary",
+    "text_registry",
+    "text_signature",
+    "trace_demo"
+  ]
+}

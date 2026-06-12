@@ -1,0 +1,75 @@
+grpc_model_lifecycle_orchestrator_host: ${grpc_model_lifecycle_orchestrator_host}
+grpc_model_lifecycle_orchestrator_port: ${grpc_model_lifecycle_orchestrator_port}
+object_storage_grpc_host: ${object_storage_grpc_host}
+object_storage_grpc_port: ${object_storage_grpc_port}
+ip_host_minio_service: ${ip_host_minio_service}
+port_minio_service: ${port_minio_service}
+refesh_token_minio_service: ${refesh_token_minio_service}
+grpc_ca_cert_path: ${grpc_ca_cert_path}
+data_raw_recognizer: ${data_raw_recognizer}
+data_raw_detection: ${data_raw_detection}
+data_train_recognizer_version: ${data_train_recognizer_version}
+data_text_recognizer_version: ${data_text_recognizer_version}
+data_train_detection_version: ${data_train_detection_version}
+data_text_detection_version: ${data_text_detection_version}
+artifact_recognizer_file_path: ${artifact_recognizer_file_path}
+artifact_detection_file_path: ${artifact_detection_file_path}
+image_inferences_file_path: ${image_inferences_file_path}
+image_raw_inferences_file_path: ${image_raw_inferences_file_path}
+image_label_inferences_file_path: ${image_label_inferences_file_path}
+
+kafka:
+  bootstrap_servers: ${kafka_bootstrap_servers}
+  security_protocol: ${kafka_security_protocol}
+  client_id_prefix: ${kafka_client_id_prefix}
+
+  defaults:
+    consumer:
+      auto_offset_reset: ${kafka_consumer_auto_offset_reset}
+      enable_auto_commit: ${kafka_consumer_enable_auto_commit}
+      session_timeout_ms: ${kafka_consumer_session_timeout_ms}
+      max_poll_interval_ms: ${kafka_consumer_max_poll_interval_ms}
+
+    producer:
+      acks: ${kafka_producer_acks}
+      enable_idempotence: ${kafka_producer_enable_idempotence}
+      retries: ${kafka_producer_retries}
+      linger_ms: ${kafka_producer_linger_ms}
+      retry_backoff_ms: ${kafka_producer_retry_backoff_ms}
+      compression_type: ${kafka_producer_compression_type}
+
+  jobs:
+    train_recognizer:
+      topic: ${kafka_jobs_train_recognizer_topic}
+      group_id: ${kafka_jobs_train_recognizer_group_id}
+
+      consumer:
+        max_poll_interval_ms: ${kafka_jobs_train_recognizer_consumer_max_poll_interval_ms}
+
+    train_detection:
+      topic: ${kafka_jobs_train_detection_topic}
+      group_id: ${kafka_jobs_train_detection_group_id}
+
+      consumer:
+        max_poll_interval_ms: ${kafka_jobs_train_detection_consumer_max_poll_interval_ms}
+
+    export_recognizer_tensorrt:
+      topic: ${kafka_jobs_export_recognizer_tensorrt_topic}
+      group_id: ${kafka_jobs_export_recognizer_tensorrt_group_id}
+
+      consumer:
+        max_poll_interval_ms: ${kafka_jobs_export_recognizer_tensorrt_consumer_max_poll_interval_ms}
+
+    export_yolo_tensorrt:
+      topic: ${kafka_jobs_export_yolo_tensorrt_topic}
+      group_id: ${kafka_jobs_export_yolo_tensorrt_group_id}
+
+      consumer:
+        max_poll_interval_ms: ${kafka_jobs_export_yolo_tensorrt_consumer_max_poll_interval_ms}
+
+PostgresSql:
+  host: ${postgresql_host}
+  port: ${postgresql_port}
+  database: ${postgresql_database}
+  user: ${postgresql_user}
+  password: ${postgresql_password}
