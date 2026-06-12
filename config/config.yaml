@@ -1,0 +1,19 @@
+minio_service:
+    endpoint: "${MINIO_HOST_IP}:${MINIO_API_PORT}"
+    access_key: "${MINIO_ACCESS_KEY:-admin}"
+    secret_key: "${MINIO_SECRET_KEY:-supersecretpassword}"
+    use_ssl: ${MINIO_USE_SSL:-false}
+    id_monitoring: "${MINIO_SERVICE_ID_MONITORING_PORT}"
+    port_metric_grpc: "${MINIO_SERVICE_METRIC_GRPC_PORT}"
+    default_bucket: "${MINIO_DEFAULT_BUCKET}"
+    buckets:
+      model_checkpoint: "${MINIO_MODELCHECKPOINT_BUCKET}"
+      data: "${MINIO_DATA_BUCKET}"
+      data_retrain: "${MINIO_DATARETRAIN_BUCKET}"
+    region: "${MINIO_REGION}"
+    presign_expiry_seconds: ${MINIO_PRESIGN_EXPIRY_SECONDS:-3600}
+    grpc_port: "${MINIO_SERVICE_PORT}"
+    # topics:
+    #   upload_request: "${MINIO_KAFKA_UPLOAD_TOPIC}"
+    #   upload_group: "${MINIO_KAFKA_UPLOAD_GROUP}"
+    #   upload_result: "${MINIO_KAFKA_RESULT_TOPIC}"
