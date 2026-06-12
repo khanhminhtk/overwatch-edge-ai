@@ -1,0 +1,7 @@
+ARG MLFLOW_BASE_IMAGE=ghcr.io/mlflow/mlflow:v3.12.0
+FROM ${MLFLOW_BASE_IMAGE}
+
+# Required for:
+# - SQLAlchemy URI postgresql+psycopg2://...
+# - S3 / MinIO artifact backend used by MLflow --serve-artifacts
+RUN pip install --no-cache-dir psycopg2-binary boto3

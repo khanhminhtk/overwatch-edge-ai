@@ -1,0 +1,16 @@
+minio_server:
+  endpoint: ${MINIO_ENDPOINT}
+  access_key: ${MINIO_ACCESS_KEY}
+  secret_key: ${MINIO_SECRET_KEY}
+  session_token: ${MINIO_SESSION_TOKEN}
+  use_ssl: ${MINIO_USE_SSL}
+  region: ${MINIO_REGION}
+  health_check: ${MINIO_HEALTH_CHECK}
+  insecure_skip_tls: ${MINIO_INSECURE_SKIP_TLS}
+  config_service_grpc:
+    grpc_port: ${MINIOSERVICE_GRPC_PORT}
+    jwt_secret: ${MINIOSERVICE_GRPC_JWT_SECRET}
+    refresh_token: ${MINIOSERVICE_GRPC_REFRESH_TOKEN}
+    expires_time_access_token: ${MINIOSERVICE_GRPC_EXPIRES_TIME_ACCESS_TOKEN}
+    expires_time_url_upload: ${MINIOSERVICE_GRPC_EXPIRES_TIME_URL_UPLOAD}
+    expires_time_url_download: ${MINIOSERVICE_GRPC_EXPIRES_TIME_URL_DOWNLOAD}

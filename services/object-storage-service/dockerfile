@@ -1,0 +1,24 @@
+FROM golang:1.25.9-alpine3.22 AS builder
+
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/minio_service ./cmd/minio_service
+
+FROM gcr.io/distroless/static-debian12:nonroot
+
+WORKDIR /app
+
+COPY --from=builder /out/minio_service /app/minio_service
+COPY --from=builder /src/config/minio_config.yaml /app/config/minio_config.yaml
+COPY --from=builder /src/certs/server.crt.example /app/certs/server.crt
+COPY --from=builder /src/certs/server.key.example /app/certs/server.key
+
+ENV TZ=UTC
+
+EXPOSE 50001
+
+ENTRYPOINT ["/app/minio_service"]
