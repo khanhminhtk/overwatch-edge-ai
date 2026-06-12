@@ -1,0 +1,174 @@
+services:
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:11.2.0}
+    restart: ${GRAFANA_RESTART:-unless-stopped}
+
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PATHS_DATA: /var/lib/grafana
+
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ${GRAFANA_DATASOURCES_FILE:-./config/monitoring/grafana/datasources.yaml}:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+
+    depends_on:
+      - prometheus
+      - loki
+
+    networks:
+      - monitoring
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+
+  loki:
+    image: ${LOKI_IMAGE:-grafana/loki:2.9.4}
+    restart: ${LOKI_RESTART:-unless-stopped}
+    user: "0:0"
+
+    command:
+      - "-config.file=/etc/loki/loki-config.yml"
+      - "-config.expand-env=true"
+
+    environment:
+      LOKI_HTTP_LISTEN_PORT: ${LOKI_PORT:-3100}
+      LOKI_LOG_LEVEL: ${LOKI_LOG_LEVEL:-info}
+      LOKI_INDEX_DIR: ${LOKI_INDEX_DIR:-/tmp/loki/index}
+      LOKI_CACHE_DIR: ${LOKI_CACHE_DIR:-/tmp/loki/cache}
+      LOKI_CHUNKS_DIR: ${LOKI_CHUNKS_DIR:-/tmp/loki/chunks}
+      LOKI_COMPACTOR_DIR: ${LOKI_COMPACTOR_DIR:-/tmp/loki/boltdb-shipper-compactor}
+      LOKI_RETENTION_PERIOD: ${LOKI_RETENTION_PERIOD:-720h}
+
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+
+    volumes:
+      - ${LOKI_CONFIG_FILE:-./config/monitoring/loki/loki-config.yaml}:/etc/loki/loki-config.yml:ro
+      - loki-data:/tmp/loki
+      - loki-wal:/tmp/loki/wal
+
+    networks:
+      - monitoring
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+
+  promtail:
+    image: ${PROMTAIL_IMAGE:-grafana/promtail:2.9.4}
+    restart: ${PROMTAIL_RESTART:-unless-stopped}
+
+    command:
+      - "-config.file=/etc/promtail/promtail-config.yml"
+      - "-config.expand-env=true"
+
+    environment:
+      PROMTAIL_HTTP_LISTEN_PORT: ${PROMTAIL_HTTP_LISTEN_PORT:-9080}
+      PROMTAIL_POSITIONS_FILE: ${PROMTAIL_POSITIONS_FILE:-/tmp/promtail/positions.yaml}
+      PROMTAIL_PUSH_URL: ${PROMTAIL_PUSH_URL:-http://loki:3100/loki/api/v1/push}
+      PROMTAIL_JOB_NAME: ${PROMTAIL_JOB_NAME:-app_logs}
+      PROMTAIL_SERVICE_NAME: ${PROMTAIL_SERVICE_NAME:-rag_imtotext_texttoim}
+      PROMTAIL_LOG_PATH: ${PROMTAIL_LOG_PATH:-/var/log/chatbot/*.log}
+      APP_ENV: ${APP_ENV:-dev}
+
+    volumes:
+      - ${PROMTAIL_CONFIG_FILE:-./config/monitoring/promtail/promtail-config.yaml}:/etc/promtail/promtail-config.yml:ro
+      - ${CHATBOT_LOG_DIR:-./logs}:/var/log/chatbot:ro
+      - promtail-data:/tmp/promtail
+
+    depends_on:
+      - loki
+
+    networks:
+      - monitoring
+
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v2.54.1}
+    restart: ${PROMETHEUS_RESTART:-unless-stopped}
+
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+
+    volumes:
+      - ${PROMETHEUS_CONFIG_FILE:-./config/monitoring/prometheus/prometheus.yml}:/etc/prometheus/prometheus.yml:ro
+      - ${PROMETHEUS_RULES_DIR:-./config/monitoring/prometheus/rules}:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+
+    depends_on:
+      - alertmanager
+
+    networks:
+      - monitoring
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/-/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+
+  alertmanager:
+    image: ${ALERTMANAGER_IMAGE:-prom/alertmanager:v0.27.0}
+    restart: ${ALERTMANAGER_RESTART:-unless-stopped}
+
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+
+    volumes:
+      - ${ALERTMANAGER_CONFIG_FILE:-./config/monitoring/alertmanager/alertmanager.yml}:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+
+    networks:
+      - monitoring
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9093/-/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+
+volumes:
+  grafana-data:
+  loki-data:
+  loki-wal:
+  promtail-data:
+  prometheus-data:
+  alertmanager-data:
+
+networks:
+  monitoring:
+    driver: bridge

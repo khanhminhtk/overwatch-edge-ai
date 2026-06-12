@@ -1,0 +1,65 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: overwatch
+
+resources:
+  - namespace.yaml
+  - minio.yaml
+  - postgres.yaml
+  - kafka.yaml
+  - triton.yaml
+  - mlflow.yaml
+  - minio-service.yaml
+  - loki.yaml
+  - promtail.yaml
+  - prometheus.yaml
+  - alertmanager.yaml
+  - grafana.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: minio-service-config
+    files:
+      - minio_config.yaml=../../backend_nexus/config/minio_config.yaml
+  - name: loki-config
+    files:
+      - loki-config.yaml=../../config/monitoring/loki/loki-config.yaml
+  - name: promtail-config
+    files:
+      - promtail-config.yaml=../../config/monitoring/promtail/promtail-config.yaml
+  - name: prometheus-config
+    files:
+      - prometheus.yml=../../config/monitoring/prometheus/prometheus.yml
+  - name: alertmanager-config
+    files:
+      - alertmanager.yml=../../config/monitoring/alertmanager/alertmanager.yml
+  - name: grafana-datasources
+    files:
+      - datasources.yaml=../../config/monitoring/grafana/datasources.yaml
+
+secretGenerator:
+  - name: minio-credentials
+    literals:
+      - MINIO_ROOT_USER=replace-me
+      - MINIO_ROOT_PASSWORD=replace-me
+      - MINIO_ACCESS_KEY=replace-me
+      - MINIO_SECRET_KEY=replace-me
+  - name: postgres-credentials
+    literals:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=replace-me
+      - POSTGRES_DB=overwatch
+  - name: minio-service-secrets
+    literals:
+      - MINIOSERVICE_GRPC_JWT_SECRET=replace-me
+      - MINIOSERVICE_GRPC_REFRESH_TOKEN=replace-me
+  - name: grafana-admin
+    literals:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=replace-me
+  - name: minio-service-tls
+    files:
+      - server.crt=../../backend_nexus/certs/server.crt.example
+      - server.key=../../backend_nexus/certs/server.key.example

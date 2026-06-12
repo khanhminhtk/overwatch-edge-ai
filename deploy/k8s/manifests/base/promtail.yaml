@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: promtail
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: promtail
+  template:
+    metadata:
+      labels:
+        app: promtail
+    spec:
+      containers:
+        - name: promtail
+          image: grafana/promtail:2.9.4
+          args: ["-config.file=/etc/promtail/promtail-config.yaml", "-config.expand-env=true"]
+          ports:
+            - containerPort: 9080
+              name: http
+          env:
+            - name: PROMTAIL_HTTP_LISTEN_PORT
+              value: "9080"
+            - name: PROMTAIL_POSITIONS_FILE
+              value: /tmp/promtail/positions.yaml
+            - name: PROMTAIL_PUSH_URL
+              value: http://loki:3100/loki/api/v1/push
+            - name: PROMTAIL_JOB_NAME
+              value: app_logs
+            - name: PROMTAIL_SERVICE_NAME
+              value: backend-nexus
+            - name: PROMTAIL_LOG_PATH
+              value: /var/log/chatbot/*.log
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          volumeMounts:
+            - name: promtail-config
+              mountPath: /etc/promtail/promtail-config.yaml
+              subPath: promtail-config.yaml
+            - name: promtail-data
+              mountPath: /tmp/promtail
+            - name: chatbot-logs
+              mountPath: /var/log/chatbot
+      volumes:
+        - name: promtail-config
+          configMap:
+            name: promtail-config
+        - name: promtail-data
+          emptyDir: {}
+        - name: chatbot-logs
+          emptyDir: {}

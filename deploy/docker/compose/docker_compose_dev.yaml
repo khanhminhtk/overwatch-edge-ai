@@ -1,0 +1,40 @@
+services:
+  minio:
+    image: ${MINIO_IMAGE:-minio/minio:latest}
+    container_name: ${MINIO_CONTAINER_NAME:-minio}
+    restart: ${MINIO_RESTART:-unless-stopped}
+    env_file:
+      - ./config/.env
+    ports:
+      - "${MINIO_HOST_IP}:${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_HOST_IP}:${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-supersecretpassword}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      MINIO_BROWSER_REDIRECT_URL: ${MINIO_BROWSER_REDIRECT_URL:-http://localhost:9001}
+      MINIO_SERVER_URL: ${MINIO_SERVER_URL:-http://localhost:9000}
+    volumes:
+      - ${MINIO_DATA_DIR:-/home/gitlab-runner/projects/mrag/data/minio}:/data
+    command: server /data --console-address ":9001"
+
+  # kafka:
+  #   image: ${KAFKA_IMAGE:-bitnamilegacy/kafka:latest}
+  #   container_name: ${KAFKA_CONTAINER_NAME:-kafka}
+  #   restart: ${KAFKA_RESTART:-unless-stopped}
+  #   user: "${KAFKA_USER:-0:0}"
+  #   env_file:
+  #     - ./config/.env
+  #   ports:
+  #     - "${KAFKA_HOST_IP}:${KAFKA_EXTERNAL_PORT:-9092}:9092"
+  #   volumes:
+  #     - ${KAFKA_DATA_DIR:-/home/gitlab-runner/projects/mrag/data/kafka}:/bitnami:z
+  #   environment:
+  #     KAFKA_CFG_NODE_ID: ${KAFKA_CFG_NODE_ID:-0}
+  #     KAFKA_CFG_PROCESS_ROLES: ${KAFKA_CFG_PROCESS_ROLES:-controller,broker}
+  #     KAFKA_CFG_LISTENERS: ${KAFKA_CFG_LISTENERS:-PLAINTEXT://:9092,CONTROLLER://:9093}
+  #     KAFKA_CFG_ADVERTISED_LISTENERS: ${KAFKA_CFG_ADVERTISED_LISTENERS:-PLAINTEXT://localhost:9092}
+  #     KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: ${KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP:-PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT}
+  #     KAFKA_CFG_CONTROLLER_LISTENER_NAMES: ${KAFKA_CFG_CONTROLLER_LISTENER_NAMES:-CONTROLLER}
+  #     KAFKA_CFG_INTER_BROKER_LISTENER_NAME: ${KAFKA_CFG_INTER_BROKER_LISTENER_NAME:-PLAINTEXT}
+  #     KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: ${KAFKA_CFG_CONTROLLER_QUORUM_VOTERS:-0@kafka:9093}
