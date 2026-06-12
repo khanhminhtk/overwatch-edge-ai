@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package model_lifecycle_orchestrator;
+
+service ModelLifecycleOrchestratorService {
+  rpc UploadFile(UploadFileRequest) returns (UploadFileResponse);
+  rpc DownloadFile(DownloadFileRequest) returns (DownloadFileResponse);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+enum DataType {
+  DATA_TYPE_UNSPECIFIED = 0;
+  DATA_TYPE_RAW_RECOGNIZER = 1;
+  DATA_TYPE_RAW_DETECTION = 2;
+  DATA_TYPE_TRAIN_RECOGNIZER_VERSION = 3;
+  DATA_TYPE_TEXT_RECOGNIZER_VERSION = 4;
+  DATA_TYPE_TRAIN_DETECTION_VERSION = 5;
+  DATA_TYPE_TEXT_DETECTION_VERSION = 6;
+  DATA_TYPE_ARTIFACT_RECOGNIZER = 7;
+  DATA_TYPE_ARTIFACT_DETECTION = 8;
+  DATA_TYPE_IMAGE_INFERENCES = 9;
+  DATA_TYPE_IMAGE_RAW_INFERENCES = 10;
+  DATA_TYPE_LABEL_INFERENCES = 11;
+
+}
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_OK = 1;
+  STATUS_ERROR = 2;
+  STATUS_UNHEALTHY = 3;
+}
+
+message UploadFileRequest {
+  string request_id = 1;
+  string request_ip = 2;
+  string bucket_name = 3;
+  string object_name = 4;
+  string version = 5;
+  DataType data_type = 6;
+  string source_url = 7;
+}
+
+message UploadFileResponse {
+  string request_id = 1;
+  int32 code = 2;
+  string message = 3;
+  Status status = 4;
+}
+
+message DownloadFileRequest {
+  string request_id = 1;
+  string request_ip = 2;
+  string bucket_name = 3;
+  string object_name = 4;
+  string version = 5;
+  DataType data_type = 6;
+  string destination_path = 7;
+}
+
+message DownloadFileResponse {
+  string request_id = 1;
+  int32 code = 2;
+  string message = 3;
+  Status status = 4;
+}
+
+message HealthCheckRequest {
+  string request_id = 1;
+}
+
+message HealthCheckResponse {
+  string request_id = 1;
+  int32 code = 2;
+  string message = 3;
+  Status status = 4;
+}

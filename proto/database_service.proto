@@ -1,0 +1,85 @@
+syntax = "proto3";
+package objectstorage;
+option go_package = "backend_nexus/proto;proto";
+
+service ObjectStorageService {
+  rpc GenerateUploadUrl(GenerateUploadUrlRequest) returns (GenerateUploadUrlResponse);
+  rpc GenerateDownloadUrl(GenerateDownloadUrlRequest) returns (GenerateDownloadUrlResponse);
+  rpc BucketExists(BucketExistsRequest) returns (BucketExistsResponse);
+  rpc CreateBucket(CreateBucketRequest) returns (CreateBucketResponse);
+  rpc RemoveBucket(RemoveBucketRequest) returns (RemoveBucketResponse);
+  // Exchange a refresh token for a short-lived access token.
+  rpc RefreshAccessToken(RefreshAccessTokenRequest) returns (RefreshAccessTokenResponse);
+}
+
+message GenerateUploadUrlRequest {
+  string bucket_name = 1;
+  string object_name = 2;
+  string request_id = 3;
+}
+
+message GenerateUploadUrlResponse {
+  string url = 1;
+  bool status = 2;
+}
+
+message GenerateDownloadUrlRequest {
+  string bucket_name = 1;
+  string object_name = 2;
+  string request_id = 3;
+}
+
+message GenerateDownloadUrlResponse {
+  string url = 1;
+  bool status = 2;
+}
+
+message BucketExistsRequest {
+  string request_id = 1;
+  string bucket_name = 2;
+}
+
+message BucketExistsResponse {
+  string request_id = 1;
+  bool success = 2;
+  string code = 3;
+  string message = 4;
+}
+
+message CreateBucketRequest {
+  string request_id = 1;
+  string bucket_name = 2;
+}
+
+message CreateBucketResponse {
+  string request_id = 1;
+  bool success = 2;
+  string code = 3;
+  string message = 4;
+}
+
+message RemoveBucketRequest {
+  string request_id = 1;
+  string bucket_name = 2;
+}
+
+message RemoveBucketResponse {
+  string request_id = 1;
+  bool success = 2;
+  string code = 3;
+  string message = 4;
+}
+
+message RefreshAccessTokenRequest {
+  string request_id = 1;
+  string refresh_token = 2;
+}
+
+message RefreshAccessTokenResponse {
+  string request_id = 1;
+  bool success = 2;
+  string code = 3;
+  string message = 4;
+  string access_token = 5;
+  int64 expires_in = 6;
+}
