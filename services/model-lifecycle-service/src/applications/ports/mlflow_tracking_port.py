@@ -1,0 +1,26 @@
+from __future__ import annotations
+
+from typing import Any, Mapping, Protocol, Sequence
+
+
+class MlflowTrackingPort(Protocol):
+    def ensure_experiment(self, experiment_name: str) -> str: ...
+
+    def start_run(self, experiment_name: str, run_name: str) -> str: ...
+
+    def resume_run(self, run_id: str) -> str: ...
+
+    def end_run(self, run_id: str, status: str = "FINISHED") -> None: ...
+
+    def set_tags(self, run_id: str, tags: Mapping[str, str]) -> None: ...
+
+    def log_params(self, run_id: str, params: Mapping[str, Any]) -> None: ...
+
+    def log_metrics(self, run_id: str, metrics: Mapping[str, float]) -> None: ...
+
+    def log_metric_series(
+        self,
+        run_id: str,
+        metric_name: str,
+        rows: Sequence[Mapping[str, int | float]],
+    ) -> None: ...
