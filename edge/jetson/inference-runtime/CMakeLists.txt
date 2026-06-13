@@ -99,6 +99,11 @@ add_executable(inference_runtime
   src/infra/triton_grpc_client.cpp
 )
 
+add_executable(runtime_config_loader_test
+  tests/runtime_config_loader_test.cpp
+  src/infra/runtime_config_loader.cpp
+)
+
 target_include_directories(inference_runtime
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -113,6 +118,17 @@ target_link_libraries(inference_runtime
   PRIVATE
     ${INFERENCE_RUNTIME_YAML_TARGET}
     ${OpenCV_LIBS}
+)
+
+target_include_directories(runtime_config_loader_test
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/infra
+)
+
+target_link_libraries(runtime_config_loader_test
+  PRIVATE
+    ${INFERENCE_RUNTIME_YAML_TARGET}
 )
 
 if(INFERENCE_RUNTIME_PCRE2_LINK_TARGET)

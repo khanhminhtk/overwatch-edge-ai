@@ -1,6 +1,6 @@
 triton:
-  grpc_url: "localhost:8001"
-  detector_model_name: "detector"
-  recognizer_model_name: "recognizer"
+  grpc_url: "${TRITON_GRPC_URL}"
+  detector_model_name: "${DETECTOR_MODEL_NAME}"
+  recognizer_model_name: "${RECOGNIZER_MODEL_NAME}"
 
-source: "0"
+source: "${VIDEO_SOURCE}"

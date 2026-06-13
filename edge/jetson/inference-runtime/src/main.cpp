@@ -13,8 +13,8 @@ int main(int argc, char** argv)
 #if defined(INFERENCE_RUNTIME_HAS_TRITON_GRPC)
         const std::string config_path = argc > 1 ? argv[1] : "config/runtime.yaml";
 
-        RuntimeConfigLoader loader;
-        const RuntimeConfig config = loader.load(config_path);
+        RuntimeConfigLoader loader(config_path);
+        const RuntimeConfig config = loader.load();
 
         TritonGrpcClient     triton_client(config.triton_url);
         triton_client.connect();
