@@ -10,19 +10,30 @@ from src.infra.onnx.clear_pt import load_recognizer_pt
 from src.utils.config_loader import ConfigLoader
 
 
+def _resolve_path(project_root: Path, path_value: str) -> Path:
+    path = Path(path_value)
+    if path.is_absolute():
+        return path
+    return project_root / path
+
+
 def export_recognizer_to_onnx(
     checkpoint_path: str,
     output_path: str,
-    config_relative_path: str = "config/training/recognizer_ctc.yaml",
+    config_relative_path: str = "ml/training/config/training/recognizer_ctc.yaml",
     env_relative_path: str = "config/.env",
+    project_root: str | None = None,
 ) -> str:
-    project_root = Path(__file__).resolve().parents[3]
+    resolved_project_root = Path(project_root).resolve() if project_root is not None else Path.cwd().resolve()
     loader = ConfigLoader(
         yaml_relative_paths=[config_relative_path],
-        project_root=project_root,
+        project_root=resolved_project_root,
         env_relative_path=env_relative_path,
     )
-    model = load_recognizer_pt(config_loader=loader, path=checkpoint_path)
+    resolved_checkpoint_path = _resolve_path(resolved_project_root, checkpoint_path)
+    resolved_output_path = _resolve_path(resolved_project_root, output_path)
+
+    model = load_recognizer_pt(config_loader=loader, path=str(resolved_checkpoint_path))
     model.eval()
 
     recog_cfg = loader.load_recognizer()
@@ -35,7 +46,7 @@ def export_recognizer_to_onnx(
 
     dummy_input = torch.randn(1, num_patches, 3, patch_h, patch_w, device="cpu")
 
-    out_path = Path(output_path)
+    out_path = resolved_output_path
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     has_uninitialized_params = any(
@@ -93,14 +104,20 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--config",
         type=str,
-        default="config/training/recognizer_ctc.yaml",
-        help="Recognizer config YAML path relative to project root.",
+        default="ml/training/config/training/recognizer_ctc.yaml",
+        help="Recognizer config YAML path relative to project root, or an absolute path.",
     )
     parser.add_argument(
         "--env",
         type=str,
         default="config/.env",
-        help="Dotenv path relative to project root.",
+        help="Dotenv path relative to project root, or an absolute path.",
+    )
+    parser.add_argument(
+        "--project-root",
+        type=str,
+        default=None,
+        help="Project root used to resolve relative checkpoint, output, config, and env paths. Defaults to current working directory.",
     )
     return parser
 
@@ -112,6 +129,7 @@ def main() -> None:
         output_path=args.output,
         config_relative_path=args.config,
         env_relative_path=args.env,
+        project_root=args.project_root,
     )
     print(f"Recognizer ONNX exported: {out}")
 

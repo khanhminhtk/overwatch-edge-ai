@@ -12,6 +12,7 @@ from src.domain.value_objet.config_yolo import YoloConfig
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _INT_PATTERN = re.compile(r"^[+-]?\d+$")
 _FLOAT_PATTERN = re.compile(r"^[+-]?(\d+\.\d*|\.\d+)$")
+_PWD_TOKEN = "${pwd}"
 
 
 class ConfigLoader:
@@ -28,6 +29,12 @@ class ConfigLoader:
         self.project_root = Path(project_root) if project_root is not None else Path(__file__).resolve().parents[2]
         self.env_relative_path = env_relative_path
         self.recognizer_arch_path = recognizer_arch_path
+
+    def _resolve_from_project_root(self, path_value: str | Path) -> Path:
+        path = Path(path_value)
+        if path.is_absolute():
+            return path
+        return self.project_root / path
 
     def _load_dotenv_file(self, env_path: Path) -> dict[str, str]:
         env: dict[str, str] = {}
@@ -67,6 +74,7 @@ class ConfigLoader:
                 raise ValueError(f"ConfigLoader._interpolate_env: Missing environment variable for config interpolation: {env_key}")
             return to_yaml_scalar(env_vars[env_key])
 
+        raw_text = raw_text.replace(_PWD_TOKEN, self.project_root.as_posix())
         return _ENV_PATTERN.sub(replace, raw_text)
 
     def load_domain_config(self) -> DomainConfig:
@@ -75,13 +83,13 @@ class ConfigLoader:
         except Exception as exc:
             raise ImportError("ConfigLoader.load_domain_config: Config loading requires PyYAML. Install with `pip install pyyaml`.") from exc
 
-        env_path = self.project_root / self.env_relative_path
+        env_path = self._resolve_from_project_root(self.env_relative_path)
         env_vars = self._load_dotenv_file(env_path)
         env_vars = {**env_vars, **dict(os.environ)}
 
         merged: dict[str, Any] = {}
         for rel_path in self.yaml_relative_paths:
-            yaml_path = self.project_root / rel_path
+            yaml_path = self._resolve_from_project_root(rel_path)
             if not yaml_path.is_file():
                 raise ValueError(f"ConfigLoader.load_domain_config: Config file not found: {yaml_path}")
 
@@ -132,7 +140,7 @@ class ConfigLoader:
         return normalized
 
     def load_yolo_config(self, config_relative_path: str = "config/training/yolo/config.yaml") -> YoloConfig:
-        config_path = self.project_root / config_relative_path
+        config_path = self._resolve_from_project_root(config_relative_path)
         if not config_path.is_file():
             raise ValueError(f"ConfigLoader.load_yolo_config: Config file not found: {config_path}")
         return YoloConfig.from_yaml(config_path)

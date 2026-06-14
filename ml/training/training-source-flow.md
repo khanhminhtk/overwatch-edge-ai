@@ -240,6 +240,11 @@ Recognizer lấy config từ:
 - `config/training/recognizer_ctc.yaml`
 - `.env.example` và biến môi trường tương ứng
 
+Lưu ý:
+
+- `dataset.data_root`, `io.save_dir`, `io.tensorboard_dir` đang được khai báo theo dạng `${pwd}/${ENV_VAR}`
+- vì vậy các biến `RECOG_DATA_ROOT`, `RECOG_SAVE_DIR`, `RECOG_TENSORBOARD_DIR` nên giữ ở dạng relative path theo training project root
+
 YOLO lấy config từ:
 
 - `config/training/yolo/config.yaml`

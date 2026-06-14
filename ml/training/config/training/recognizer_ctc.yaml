@@ -14,7 +14,7 @@ recognizer:
     moe_dropout: ${RECOG_MOE_DROPOUT}
     config_training:
       dataset:
-        data_root: ${RECOG_DATA_ROOT}
+        data_root: ${pwd}/${RECOG_DATA_ROOT}
         train_split: ${RECOG_TRAIN_SPLIT}
         val_split: ${RECOG_VAL_SPLIT}
         val_ratio: ${RECOG_VAL_RATIO}
@@ -88,7 +88,7 @@ recognizer:
           module_names:
             - ${RECOG_GRAD_NORM_MODULE_1}
       io:
-        save_dir: ${RECOG_SAVE_DIR}
-        tensorboard_dir: ${RECOG_TENSORBOARD_DIR}
+        save_dir: ${pwd}/${RECOG_SAVE_DIR}
+        tensorboard_dir: ${pwd}/${RECOG_TENSORBOARD_DIR}
         best_loss_checkpoint_name: best_loss.pt
         best_cer_checkpoint_name: best_cer.pt

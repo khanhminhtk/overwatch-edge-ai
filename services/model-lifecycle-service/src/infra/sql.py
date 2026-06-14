@@ -58,8 +58,6 @@ class PostgresSQLHandler:
             raise
 
 if __name__ == "__main__":
-
-
     config_loader = ConfigLoader(
     env_file="/home/minhtk/code/overwatch-edge-ai/worktree/backend_nexus/services/model-lifecycle-service/config/.env", 
     config_yaml_file="/home/minhtk/code/overwatch-edge-ai/worktree/backend_nexus/services/model-lifecycle-service/config/model_lifecycle_orchestrator_config.yaml"
