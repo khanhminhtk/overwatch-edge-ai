@@ -12,7 +12,7 @@ from unittest.mock import patch
 from src.infra.config.grpc import GrpcServerConfig, ObjectStorageRuntimeConfig
 from src.infra.config.kafka import KafkaConfig, KafkaConsumerConfig, KafkaJobConfig
 from src.infra.config.postgrest import PostgrestConfig
-from src.utils.configloader import ConfigLoader, load_config
+from src.utils.configloader import ConfigLoader, load_config, load_environment
 
 
 @dataclass(frozen=True)
@@ -50,6 +50,104 @@ class KafkaOnlyAppConfig:
 
 
 class ConfigLoaderTest(unittest.TestCase):
+    def test_load_environment_does_not_override_existing_env_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            env_path = Path(tmp_dir) / ".env"
+            env_path.write_text("SHARED_KEY=from_env_file\n", encoding="utf-8")
+
+            with patch.dict(os.environ, {"SHARED_KEY": "from_process"}, clear=True):
+                load_environment(env_path)
+
+                self.assertEqual(os.environ["SHARED_KEY"], "from_process")
+
+    def test_load_environment_can_override_existing_env_when_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            env_path = Path(tmp_dir) / ".env"
+            env_path.write_text("SHARED_KEY=from_env_file\n", encoding="utf-8")
+
+            with patch.dict(os.environ, {"SHARED_KEY": "from_process"}, clear=True):
+                load_environment(env_path, override=True)
+
+                self.assertEqual(os.environ["SHARED_KEY"], "from_env_file")
+
+    def test_load_environment_loads_multiple_env_files_in_order(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            base_env_path = tmp_path / "base.env"
+            override_env_path = tmp_path / "override.env"
+            base_env_path.write_text("BASE_ONLY=base\nSHARED_KEY=base\n", encoding="utf-8")
+            override_env_path.write_text("OVERRIDE_ONLY=override\nSHARED_KEY=override\n", encoding="utf-8")
+
+            with patch.dict(os.environ, {}, clear=True):
+                load_environment([base_env_path, override_env_path], override=True)
+
+                self.assertEqual(os.environ["BASE_ONLY"], "base")
+                self.assertEqual(os.environ["OVERRIDE_ONLY"], "override")
+                self.assertEqual(os.environ["SHARED_KEY"], "override")
+
+    def test_load_config_merges_multiple_yaml_files_in_order_before_mapping(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            base_yaml_path = tmp_path / "base.yaml"
+            override_yaml_path = tmp_path / "override.yaml"
+
+            base_yaml_path.write_text(
+                textwrap.dedent(
+                    """
+                    grpc_port: 50051
+                    kafka_enabled: true
+                    threshold: 1.0
+                    credentials:
+                      username: admin
+                      password: ${API_PASSWORD}
+                    groups:
+                      primary:
+                        name: ingest
+                        items:
+                          - code: alpha
+                            enabled: true
+                    aliases:
+                      - model-a
+                      - model-b
+                    """
+                ).strip(),
+                encoding="utf-8",
+            )
+            override_yaml_path.write_text(
+                textwrap.dedent(
+                    """
+                    threshold: 2.5
+                    credentials:
+                      password: ${API_PASSWORD_OVERRIDE}
+                    groups:
+                      primary:
+                        name: serving
+                        items:
+                          - code: beta
+                            enabled: false
+                    """
+                ).strip(),
+                encoding="utf-8",
+            )
+
+            with patch.dict(
+                os.environ,
+                {"API_PASSWORD": "base-secret", "API_PASSWORD_OVERRIDE": "override-secret"},
+                clear=True,
+            ):
+                config = load_config(
+                    config_path=[base_yaml_path, override_yaml_path],
+                    dto_cls=ExampleConfig,
+                )
+
+            self.assertEqual(config.grpc_port, 50051)
+            self.assertEqual(config.threshold, 2.5)
+            self.assertEqual(config.credentials.username, "admin")
+            self.assertEqual(config.credentials.password, "override-secret")
+            self.assertEqual(config.groups["primary"].name, "serving")
+            self.assertEqual(config.groups["primary"].items[0].code, "beta")
+            self.assertEqual(config.aliases, ("model-a", "model-b"))
+
     def test_get_config_resolves_env_variables_in_nested_dict(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)

@@ -11,9 +11,9 @@ except ImportError:  # pragma: no cover
     class KafkaException(Exception):
         pass
 
+from src.applications.ports.config_provider_port import ConfigProviderPort
 from src.utils.logger import Logger
 from src.infra.config.kafka import KafkaConfig
-from src.utils.configloader import ConfigLoader
 
 class GracefulShutdown:
     def __init__(self) -> None:
@@ -30,7 +30,7 @@ class GracefulShutdown:
 class KafkaConsumerClient:
     def __init__(
         self,
-        config_loader: ConfigLoader,
+        config_loader: ConfigProviderPort,
         logger: Logger,
         job_key: str | None = None,
         job_keys: list[str] | None = None,

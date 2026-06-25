@@ -1,55 +1,55 @@
-import os
-from dotenv import load_dotenv
+import sys
 from pathlib import Path
-
-from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
-
-from src.infra.mlflow.mlflow_tracking import MlflowTracking
-from src.applications.dtos.mlflow_production_run_metadata import MlflowRunTags
-from src.utils.logger import Logger
+import os
 
 SERVICE_ROOT = Path(__file__).resolve().parents[5]
+service_root = str(SERVICE_ROOT)
+if service_root not in sys.path:
+    sys.path.insert(0, service_root)
 
-class MlflowTrackingRecognizer:
+from src.applications.use_cases.mlflow.base.tracking import BaseMlflowTrackingUseCase
+from src.infra.mlflow.mlflow_tracking import MlflowTracking
+from src.utils.logger import Logger
+
+class MlflowTrackingRecognizer(BaseMlflowTrackingUseCase):
     def __init__(
         self,
         mlflow_tracking: MlflowTracking,
         logger: Logger,
         path_env_ml_traning: str
     ):
-        self._mlflow_tracking = mlflow_tracking
-        self._logger = logger
-        load_dotenv(dotenv_path=path_env_ml_traning)
-        self._tb = os.getenv("RECOG_TENSORBOARD_DIR")
-
-    def excute(self, git_commit: str, host_name: str, gpu_name: str, framework: str, goal: str, tracking_level: str) -> None:
-        run_id = self._mlflow_tracking.start_run(
-            experiment_name="recognizer_training",
-            run_name=f"recognizer_training_{git_commit}_{host_name}_{gpu_name}"
+        super().__init__(
+            mlflow_tracking=mlflow_tracking,
+            logger=logger,
+            path_env_ml_traning=path_env_ml_traning,
+            model_name_env_key="MLFLOW_MODEL_NAME_RECOGNIZER",
+            model_type_env_key="RECOG_MODEL_TYPE",
+            task_name_env_key="RECOG_TASK_NAME",
+            docker_image_env_key="RECOG_DOCKER_IMAGE",
+            dataset_zip_path_env_key="RECOG_DATASET_ZIP_PATH",
+            manifest_path_env_key="RECOG_MANIFEST_PATH",
         )
-        self.export_tensorboard_to_mlflow(run_id)
-        self.log_tag(
-            git_commit=git_commit,
-            host_name=host_name,
-            gpu_name=gpu_name,
-            framework=framework,
-            goal=goal,
-            tracking_level=tracking_level,
-            run_id=run_id
+        self._tensorboard_dir = self._env("RECOG_TENSORBOARD_DIR")
+        self._checkpoint_dir = self._env("RECOG_SAVE_DIR")
+
+    def export_training_metrics(self, run_id: str, pwd: str) -> None:
+        if not self._tensorboard_dir:
+            raise ValueError("RECOG_TENSORBOARD_FILE is not configured")
+        from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+        tb_path = self._resolve_path(pwd, self._tensorboard_dir)
+
+        self._logger.info(
+            "[MLFLOW_TENSORBOARD_EXPORT_STARTED]",
+            f"run_id={run_id}",
+            f"tb_file={self._tensorboard_dir}",
         )
 
-    def export_tensorboard_to_mlflow(self, run_id: str) -> None:
-        if not self._tb:
-            raise ValueError("RECOG_TENSORBOARD_DIR is not configured")
-
-        self._logger.info("[MLFLOW_TENSORBOARD_EXPORT_STARTED]", f"run_id={run_id}", f"tb_dir={self._tb}")
-
-        event_acc = EventAccumulator(str(self._tb))
+        event_acc = EventAccumulator(str(tb_path))
         event_acc.Reload()
 
         scalar_tags = event_acc.Tags().get("scalars", [])
         for tag in scalar_tags:
-            if "train_epoch" not in tag and "val_epoch" not in tag:
+            if "train/epoch" not in tag and "val/epoch" not in tag:
                 continue
 
             rows: list[dict[str, int | float]] = []
@@ -76,32 +76,34 @@ class MlflowTrackingRecognizer:
                     rows=rows,
                 )
 
-    def log_tag(self, 
-            git_commit: str,
-            host_name: str, 
-            gpu_name: str, 
-            framework: str, 
-            goal: str,
-            tracking_level: str,
-            run_id: str
-        ) -> None:
-        tags = MlflowRunTags(
-            source="ml/training/scripts/train_recognizer.sh",
-            goal=goal,
-            tracking_level=tracking_level,
-            model_type="recognizer",
-            task="image_classification",
-            registered_model_name="deepseek vit ctc recognizer",
-            git_commit=git_commit,
-            host_name=host_name,
-            gpu_name=gpu_name,
-            framework=framework
-        )
-        self._mlflow_tracking.resume_run(run_id=run_id)
-        self._mlflow_tracking.set_tags(
-            tags.__dict__
-        )
-        self._mlflow_tracking.end_run(run_id=run_id)
+    def _metric_source_tag_value(self) -> str:
+        return self._tensorboard_dir
+
+    def _checkpoint_dir_tag_value(self) -> str:
+        return self._checkpoint_dir
 
     def log_metric(self, run_id: str, key: str, value: float) -> None:
         self._mlflow_tracking.log_metrics(run_id=run_id, metrics={key: value})
+
+
+# if __name__ == "__main__":
+#     from src.infra.mlflow.mlflow_tracking import MlflowTracking
+#     from src.utils.logger import Logger
+#     print(SERVICE_ROOT)
+
+#     mlflow_tracking = MlflowTracking("http://localhost:5000")
+
+#     logger = Logger()
+#     recognizer = MlflowTrackingRecognizer(
+#         mlflow_tracking=mlflow_tracking,
+#         logger=logger,
+#         path_env_ml_traning="/home/minhtk/code/overwatch-edge-ai/worktree/backend_nexus/ml/training/config/.env.example"
+#     )
+#     recognizer.excute(
+#         git_commit="abc123",
+#         host_name="test_host",
+#         gpu_name="test_gpu",
+#         framework="pytorch",
+#         goal="test_goal",
+#         tracking_level="test_level"
+#     )

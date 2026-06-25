@@ -10,9 +10,12 @@ from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
 import yaml
 from dotenv import load_dotenv
 
+from src.applications.ports.config_provider_port import ConfigProviderPort
 
 T = TypeVar("T")
 ENV_PATTERN = re.compile(r"\$\{([^}:]+)(:-([^}]*))?\}")
+PathLike = str | Path
+PathSequence = PathLike | list[PathLike] | tuple[PathLike, ...]
 
 
 def _format_path(path: str) -> str:
@@ -71,15 +74,46 @@ def _invalid_type_error(path: str, target_type: Any, value: Any) -> ValueError:
     )
 
 
-def load_yaml_config(config_path: str | Path) -> Any:
-    with Path(config_path).open("r", encoding="utf-8") as file:
-        return yaml.safe_load(file) or {}
+def _normalize_paths(paths: PathSequence | None) -> list[PathLike]:
+    if paths is None:
+        return []
+    if isinstance(paths, (str, Path)):
+        return [paths]
+    return list(paths)
 
 
-def load_environment(env_file: str | Path | None = None) -> None:
-    if env_file is None:
-        return
-    load_dotenv(dotenv_path=env_file, override=False)
+def _deep_merge(base: Any, override: Any) -> Any:
+    if isinstance(base, dict) and isinstance(override, dict):
+        merged = dict(base)
+        for key, value in override.items():
+            if key in merged:
+                merged[key] = _deep_merge(merged[key], value)
+            else:
+                merged[key] = value
+        return merged
+    return override
+
+
+def load_yaml_config(config_path: PathSequence) -> Any:
+    config_paths = _normalize_paths(config_path)
+    if not config_paths:
+        return {}
+
+    merged_config: Any = {}
+    for current_path in config_paths:
+        with Path(current_path).open("r", encoding="utf-8") as file:
+            loaded = yaml.safe_load(file) or {}
+        merged_config = _deep_merge(merged_config, loaded)
+    return merged_config
+
+
+def load_environment(
+    env_file: PathSequence | None = None,
+    *,
+    override: bool = False,
+) -> None:
+    for current_env_file in _normalize_paths(env_file):
+        load_dotenv(dotenv_path=current_env_file, override=override)
 
 
 def resolve_env_placeholders(data: Any, path: str = "") -> Any:
@@ -270,9 +304,9 @@ def map_to_dataclass(data: Any, target_type: type[T] | Any, path: str = "") -> T
 
 
 def load_config(
-    config_path: str | Path,
+    config_path: PathSequence,
     dto_cls: type[T],
-    env_file: str | Path | None = None,
+    env_file: PathSequence | None = None,
     config_section: str | None = None,
 ) -> T:
     load_environment(env_file)
@@ -323,20 +357,30 @@ def _get_config_section(data: dict[str, Any], config_section: str) -> Any:
     return current
 
 
-class ConfigLoader:
-    def __init__(self, env_file: str | Path | None, config_yaml_file: str | Path):
-        self.env_file = env_file
-        self.config_yaml_file = config_yaml_file
+class ConfigLoader(ConfigProviderPort):
+    def __init__(
+        self,
+        env_file: PathSequence | None = None,
+        config_yaml_file: PathSequence | None = None,
+        *,
+        env_files: list[PathLike] | tuple[PathLike, ...] | None = None,
+        yaml_files: list[PathLike] | tuple[PathLike, ...] | None = None,
+    ):
+        self._env_files = _normalize_paths(env_files if env_files is not None else env_file)
+        self._yaml_files = _normalize_paths(yaml_files if yaml_files is not None else config_yaml_file)
         self.config: dict[str, Any] = {}
         self._env_loaded = False
 
     def _load_env_variables(self) -> None:
         if not self._env_loaded:
-            load_environment(self.env_file)
+            load_environment(self._env_files)
             self._env_loaded = True
 
     def _load_config(self) -> dict[str, Any]:
-        return load_yaml_config(self.config_yaml_file)
+        loaded = load_yaml_config(self._yaml_files)
+        if not isinstance(loaded, dict):
+            raise ValueError("Root config must be a mapping")
+        return loaded
 
     def get_config(self) -> dict[str, Any]:
         self._load_env_variables()
@@ -350,15 +394,23 @@ class ConfigLoader:
     ) -> T:
         self._load_env_variables()
         return load_config(
-            config_path=self.config_yaml_file,
+            config_path=self._yaml_files,
             dto_cls=dto_cls,
-            env_file=self.env_file,
+            env_file=self._env_files,
             config_section=config_section,
         )
 
     def get_env_variable(self, var_name: str) -> str | None:
         self._load_env_variables()
         return os.getenv(var_name)
+
+    @property
+    def env_files(self) -> list[PathLike]:
+        return list(self._env_files)
+
+    @property
+    def yaml_files(self) -> list[PathLike]:
+        return list(self._yaml_files)
 
 
 # if __name__ == "__main__":

@@ -1,6 +1,7 @@
 """Application ports."""
 
 __all__ = [
+    "ConfigProviderPort",
     "DownloadTransportPort",
     "IMessageBlokerClient",
     "IMessageBlokerConsummer",
@@ -17,6 +18,11 @@ __all__ = [
 
 
 def __getattr__(name: str):
+    if name == "ConfigProviderPort":
+        from src.applications.ports.config_provider_port import ConfigProviderPort
+
+        return ConfigProviderPort
+
     if name == "DownloadTransportPort":
         from src.applications.ports.download_transport_port import DownloadTransportPort
 

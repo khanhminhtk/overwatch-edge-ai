@@ -11,13 +11,13 @@ from src.applications.ports.mlflow_artifact_port import MlflowArtifactPort
 
 
 class MlflowArtifact(MlflowArtifactPort):
-    def __init__(self, tracking_uri: str):
-        self._client = MlflowClient(tracking_uri=tracking_uri)
+    def __init__(self, client: MlflowClient):
+        self._client = client
 
-    def log_artifact(self, run_id: str, local_path: str, artifact_path: str) -> None:
+    def log_artifact(self, run_id: str, local_path: str, artifact_path: Any = None) -> None:
         self._client.log_artifact(run_id, local_path, artifact_path)
 
-    def log_artifacts(self, run_id: str, local_dir: str, artifact_path: str) -> None:
+    def log_artifacts(self, run_id: str, local_dir: str, artifact_path: Any = None) -> None:
         self._client.log_artifacts(run_id, local_dir, artifact_path)
 
     def log_text(self, run_id: str, content: str, artifact_file: str) -> None:

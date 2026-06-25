@@ -22,12 +22,12 @@ export PYTHONPATH="${PROJECT_ROOT}:${PYTHONPATH:-}"
 
 case "$MODE" in
   local)
-    echo "[info] Skipping training recognizer orchestration with mode 'local'."
+    echo "[info] Skipping training detection orchestration with mode 'local'."
     ;;
 
   dev|prod)
-    echo "[info] Running training recognizer orchestration with mode '$MODE'."
-    uv run python -m src.application.use_cases.orchestration.train_recognizer_orchestration "$@"
+    echo "[info] Running training detection orchestration with mode '$MODE'."
+    uv run python -m src.application.use_cases.orchestration.train_yolo_orchestration "$@"
     ;;
 
   *)

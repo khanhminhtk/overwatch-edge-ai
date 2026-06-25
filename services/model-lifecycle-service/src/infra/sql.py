@@ -3,13 +3,14 @@ from pathlib import Path
 import psycopg 
 from psycopg.types.json import Jsonb
 
+from src.applications.ports.config_provider_port import ConfigProviderPort
 from src.utils.configloader import ConfigLoader
 from src.utils.logger import Logger
 from src.infra.config.postgrest import PostgrestConfig
 
 
 class PostgresSQLHandler:
-    def __init__(self, config_loader: ConfigLoader, logger: Logger):
+    def __init__(self, config_loader: ConfigProviderPort, logger: Logger):
         self.config_loader = config_loader
         self.sql_config: PostgrestConfig = self.config_loader.get_typed_config(PostgrestConfig, config_section="PostgresSql")
         self.dns = self._load_config()

@@ -5,15 +5,15 @@ try:
 except ImportError:  # pragma: no cover
     Producer = None  # type: ignore[assignment]
 
+from src.applications.ports.config_provider_port import ConfigProviderPort
 from src.utils.logger import Logger
 from src.infra.config.kafka import KafkaConfig
-from src.utils.configloader import ConfigLoader
 
 class KafkaProducerClient:
     def __init__(
             self, 
             logger: Logger,
-            config_loader: ConfigLoader,
+            config_loader: ConfigProviderPort,
         ) -> None:
         self._logger = logger
         kafka_config = config_loader.get_typed_config(KafkaConfig)

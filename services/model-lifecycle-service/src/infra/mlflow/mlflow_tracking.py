@@ -62,3 +62,7 @@ class MlflowTracking(MlflowTrackingPort):
                 step=int(row.get("step", 0)),
                 timestamp=int(row.get("timestamp_ms", 0)) if "timestamp_ms" in row else None,
             )
+
+    @property
+    def client(self) -> MlflowClient:
+        return self._client
