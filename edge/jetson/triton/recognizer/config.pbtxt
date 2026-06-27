@@ -1,40 +1,33 @@
 name: "recognizer"
-backend: "python"
-max_batch_size: 32
+platform: "tensorrt_plan"
+default_model_filename: "recognizer.plan"
+
+max_batch_size: 8
 
 input [
   {
-    name: "CROPS"
+    name: "images"
     data_type: TYPE_FP32
-    dims: [ 3, 48, 160 ]
+    dims: [16, 3, 64, 64]
   }
 ]
 
 output [
   {
-    name: "TEXT"
-    data_type: TYPE_STRING
-    dims: [ 1 ]
-  },
-  {
-    name: "CONFIDENCE"
+    name: "logits"
     data_type: TYPE_FP32
-    dims: [ 1 ]
-  },
-  {
-    name: "LOGITS"
-    data_type: TYPE_FP32
-    dims: [ 12, 37 ]
+    dims: [16, -1]
   }
 ]
 
 instance_group [
   {
-    kind: KIND_CPU
+    kind: KIND_GPU
+    count: 1
   }
 ]
 
-parameters: {
-  key: "sequence_length"
-  value: { string_value: "12" }
+dynamic_batching {
+  preferred_batch_size: [2, 4, 8]
+  max_queue_delay_microseconds: 300
 }
