@@ -1,6 +1,88 @@
 services:
+  triton_builder_recognizer:
+    profiles: ["recognizer-builder"]
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/triton-builder/Dockerfile
+      args:
+        TRITON_IMAGE: ${TRITON_RECOGNIZER_BUILDER_IMAGE:-${TRITON_BUILDER_IMAGE:-${TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:24.07-py3-igpu}}}
+    image: ${TRITON_RECOGNIZER_BUILDER_LOCAL_IMAGE:-overwatch-triton-recognizer-builder:local}
+    container_name: ${TRITON_RECOGNIZER_BUILDER_CONTAINER_NAME:-triton_builder_recognizer}
+
+    env_file:
+      - ../../../config/.env
+
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${TRITON_GPU_COUNT:-all}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      TRITON_MODEL_KIND: recognizer
+      TRITON_MODEL_VERSION: ${TRITON_RECOGNIZER_MODEL_VERSION:-${TRITON_MODEL_VERSION:-1}}
+      TRITON_ONNX_PATH: /workspace/artifacts/onnx/recognizer.onnx
+      TRITON_PLAN_PATH: /workspace/edge/jetson/triton/recognizer/${TRITON_RECOGNIZER_MODEL_VERSION:-${TRITON_MODEL_VERSION:-1}}/recognizer.plan
+      TRITON_MIN_SHAPES: images:1x16x3x64x64
+      TRITON_OPT_SHAPES: images:4x16x3x64x64
+      TRITON_MAX_SHAPES: images:8x16x3x64x64
+      TRITON_PRECISION_FLAG: --fp16
+      TRITON_TRTEXEC_EXTRA_FLAGS: ${TRITON_RECOGNIZER_TRTEXEC_EXTRA_FLAGS:-}
+
+    volumes:
+      - ../../../pyproject.toml:/workspace/pyproject.toml:ro
+      - ../../../uv.lock:/workspace/uv.lock:ro
+      - ../../../config:/workspace/config:ro
+      - ../../../data:/workspace/data:ro
+      - ../../../artifacts:/workspace/artifacts
+      - ../../../edge/jetson/triton:/workspace/edge/jetson/triton
+      - ../../../ml/training/config:/workspace/ml/training/config:ro
+      - ../../../ml/training/scripts:/workspace/ml/training/scripts:ro
+      - ../../../ml/training/src:/workspace/ml/training/src:ro
+
+    runtime: nvidia
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+
+  triton_builder_detector:
+    profiles: ["detector-builder"]
+
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/triton-detection-builder/Dockerfile
+      args:
+        TRITON_IMAGE: ${TRITON_DETECTOR_BUILDER_IMAGE:-${TRITON_BUILDER_IMAGE:-${TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:24.07-py3-igpu}}}
+        TRITON_MODEL_VERSION: ${TRITON_DETECTOR_MODEL_VERSION:-${TRITON_MODEL_VERSION:-1}}
+
+    image: ${TRITON_DETECTOR_BUILDER_LOCAL_IMAGE:-overwatch-triton-detector-builder:local}
+    container_name: ${TRITON_DETECTOR_BUILDER_CONTAINER_NAME:-triton_builder_detector}
+
+    env_file:
+      - ../../../config/.env
+
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${TRITON_GPU_COUNT:-all}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      TRITON_MODEL_KIND: detector
+      TRITON_MODEL_VERSION: ${TRITON_DETECTOR_MODEL_VERSION:-${TRITON_MODEL_VERSION:-1}}
+      TRITON_ONNX_PATH: /workspace/artifacts/onnx/detection.onnx
+      TRITON_PLAN_PATH: /workspace/edge/jetson/triton/detector/${TRITON_DETECTOR_MODEL_VERSION:-${TRITON_MODEL_VERSION:-1}}/detection.plan
+
+    volumes:
+      - ../../../pyproject.toml:/workspace/pyproject.toml:ro
+      - ../../../uv.lock:/workspace/uv.lock:ro
+      - ../../../config:/workspace/config:ro
+      - ../../../data:/workspace/data:ro
+      - ../../../artifacts:/workspace/artifacts
+      - ../../../edge/jetson/triton:/workspace/edge/jetson/triton
+      - ../../../ml/training/config:/workspace/ml/training/config:ro
+      - ../../../ml/training/scripts:/workspace/ml/training/scripts:ro
+      - ../../../ml/training/src:/workspace/ml/training/src:ro
+
+    runtime: nvidia
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+
   triton:
-    image: ${TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:23.06-py3}
+    image: ${TRITON_SERVER_IMAGE:-${TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:24.07-py3-igpu}}
     container_name: ${TRITON_CONTAINER_NAME:-triton_overwatch}
     restart: ${TRITON_RESTART:-unless-stopped}
 
@@ -26,6 +108,12 @@ services:
     volumes:
       - ../../../edge/jetson/triton/detector:/models/detector:ro
       - ../../../edge/jetson/triton/recognizer:/models/recognizer:ro
+
+    runtime: nvidia
+
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${TRITON_GPU_COUNT:-all}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
 
     shm_size: ${TRITON_SHM_SIZE:-1g}
 
