@@ -2,6 +2,7 @@ from collections.abc import Iterable
 from logging import getLogger
 from pathlib import Path
 import shutil
+import tempfile
 from typing import Any
 
 from ultralytics import YOLO
@@ -146,16 +147,43 @@ class YoloTrainer:
 
         export_dir = export_path_obj.parent
         run_name = export_path_obj.stem
-        exported = self._model.export(format=fmt, project=str(export_dir), name=run_name, exist_ok=True)
-        produced = Path(str(exported)).expanduser().resolve()
-        if not produced.exists():
-            raise RuntimeError(f"Cannot locate exported .{fmt} artifact: {produced}")
-        if produced.resolve() != export_path_obj:
-            shutil.move(str(produced), str(export_path_obj))
-        return str(export_path_obj)
+        original_pt_path = getattr(self._model.model, "pt_path", None)
+        temp_dir: tempfile.TemporaryDirectory[str] | None = None
+        try:
+            if original_pt_path:
+                original_pt_path_obj = Path(original_pt_path).expanduser().resolve()
+                temp_dir = tempfile.TemporaryDirectory(prefix="yolo-export-", dir=str(export_dir))
+                temp_pt_path = Path(temp_dir.name) / original_pt_path_obj.name
+                shutil.copy2(original_pt_path_obj, temp_pt_path)
+                self._model.model.pt_path = str(temp_pt_path)
+
+            exported = self._model.export(
+                format=fmt,
+                project=str(export_dir),
+                name=run_name,
+                exist_ok=True,
+                device="cpu",
+                dynamic=True,
+                end2end=False,
+                simplify=False,
+            )
+            produced = Path(str(exported)).expanduser().resolve()
+            if not produced.exists():
+                raise RuntimeError(f"Cannot locate exported .{fmt} artifact: {produced}")
+            if produced.resolve() != export_path_obj:
+                shutil.move(str(produced), str(export_path_obj))
+            return str(export_path_obj)
+        finally:
+            if original_pt_path:
+                self._model.model.pt_path = original_pt_path
+            if temp_dir is not None:
+                temp_dir.cleanup()
 
     def export_onnx(self, export_path: str | Path) -> str:
-        exported_path = self._export_to_path(export_path=export_path, fmt="onnx")
+        exported_path = self._export_to_path(
+            export_path=export_path, 
+            fmt="onnx"
+        )
         LOGGER.info("Model exported to ONNX format at %s", exported_path)
         return exported_path
     

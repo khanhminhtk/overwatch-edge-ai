@@ -17,12 +17,23 @@ def _resolve_path(project_root: Path, path_value: str) -> Path:
     return project_root / path
 
 
+class _RecognizerLogitsOnly(torch.nn.Module):
+    def __init__(self, model: torch.nn.Module) -> None:
+        super().__init__()
+        self.model = model
+
+    def forward(self, images: torch.Tensor) -> torch.Tensor:
+        logits, _aux_loss = self.model(images)
+        return logits
+
+
 def export_recognizer_to_onnx(
     checkpoint_path: str,
     output_path: str,
     config_relative_path: str = "ml/training/config/training/recognizer_ctc.yaml",
     env_relative_path: str = "config/.env",
     project_root: str | None = None,
+    exporter: str = "legacy",
 ) -> str:
     resolved_project_root = Path(project_root).resolve() if project_root is not None else Path.cwd().resolve()
     loader = ConfigLoader(
@@ -35,6 +46,7 @@ def export_recognizer_to_onnx(
 
     model = load_recognizer_pt(config_loader=loader, path=str(resolved_checkpoint_path))
     model.eval()
+    export_model = _RecognizerLogitsOnly(model).eval()
 
     recog_cfg = loader.load_recognizer()
     cfg_training = dict(recog_cfg.config_training)
@@ -54,14 +66,14 @@ def export_recognizer_to_onnx(
     )
     if has_uninitialized_params:
         with torch.no_grad():
-            model(dummy_input)
+            export_model(dummy_input)
 
     export_kwargs = dict(
         export_params=True,
         opset_version=17,
         do_constant_folding=True,
         input_names=["images"],
-        output_names=["logits", "aux_loss"],
+        output_names=["logits"],
         dynamic_axes={
             "images": {0: "batch_size", 1: "num_patches"},
             "logits": {0: "batch_size", 1: "num_patches"},
@@ -69,19 +81,37 @@ def export_recognizer_to_onnx(
     )
 
     with torch.no_grad():
-        try:
+        if exporter == "dynamo":
             torch.onnx.export(
-                model,
+                export_model,
                 dummy_input,
                 str(out_path),
                 dynamo=True,
                 **export_kwargs,
             )
-        except Exception:
+        elif exporter == "auto":
+            try:
+                torch.onnx.export(
+                    export_model,
+                    dummy_input,
+                    str(out_path),
+                    dynamo=False,
+                    **export_kwargs,
+                )
+            except Exception:
+                torch.onnx.export(
+                    export_model,
+                    dummy_input,
+                    str(out_path),
+                    dynamo=True,
+                    **export_kwargs,
+                )
+        else:
             torch.onnx.export(
-                model,
+                export_model,
                 dummy_input,
                 str(out_path),
+                dynamo=False,
                 **export_kwargs,
             )
     return str(out_path)
@@ -119,6 +149,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Project root used to resolve relative checkpoint, output, config, and env paths. Defaults to current working directory.",
     )
+    parser.add_argument(
+        "--exporter",
+        type=str,
+        choices=("legacy", "dynamo", "auto"),
+        default="legacy",
+        help="ONNX exporter path. Use legacy for best TensorRT 8.x compatibility.",
+    )
     return parser
 
 
@@ -130,6 +167,7 @@ def main() -> None:
         config_relative_path=args.config,
         env_relative_path=args.env,
         project_root=args.project_root,
+        exporter=args.exporter,
     )
     print(f"Recognizer ONNX exported: {out}")
 

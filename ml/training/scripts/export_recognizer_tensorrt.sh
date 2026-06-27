@@ -101,7 +101,7 @@ ENV_ABS_PATH="$(resolve_path "${PROJECT_ROOT}" "${ENV_PATH}")"
 CONFIG_ABS_PATH="$(resolve_path "${PROJECT_ROOT}" "${CONFIG_PATH}")"
 ONNX_ABS_PATH="$(resolve_path "${PROJECT_ROOT}" "${ONNX_PATH}")"
 ENGINE_ABS_PATH="$(resolve_path "${PROJECT_ROOT}" "${ENGINE_PATH}")"
-PYTHON_BIN="${PROJECT_ROOT}/.venv/bin/python"
+UV_RUN_PYTHON=(uv run --project "${PROJECT_ROOT}" python)
 
 if [[ ! -d "${TRAINING_ROOT}/src" ]]; then
   echo "[error] Invalid project root: '${PROJECT_ROOT}'. Expected '${TRAINING_ROOT}/src' to exist." >&2
@@ -133,8 +133,8 @@ if [[ ! -f "${CONFIG_ABS_PATH}" ]]; then
   exit 1
 fi
 
-if [[ ! -x "${PYTHON_BIN}" ]]; then
-  echo "[error] Python venv not found at ${PYTHON_BIN}" >&2
+if ! command -v uv >/dev/null 2>&1; then
+  echo "[error] uv not found. Please install uv and ensure it is in PATH." >&2
   exit 1
 fi
 
@@ -143,15 +143,32 @@ if ! command -v trtexec >/dev/null 2>&1; then
   exit 1
 fi
 
-set -a
-source "${ENV_ABS_PATH}"
-set +a
-
-export PYTHONPATH="${TRAINING_ROOT}:${PYTHONPATH:-}"
 export PROJECT_ROOT ENV_ABS_PATH CONFIG_ABS_PATH
 
+mapfile -t DOTENV_EXPORTS < <(
+  "${UV_RUN_PYTHON[@]}" - <<'PY'
+import os
+import shlex
+
+from dotenv import dotenv_values
+
+env_path = os.environ["ENV_ABS_PATH"]
+
+for key, value in dotenv_values(env_path).items():
+    if value is None:
+        value = ""
+    print(f"export {key}={shlex.quote(value)}")
+PY
+)
+
+for export_cmd in "${DOTENV_EXPORTS[@]}"; do
+  eval "${export_cmd}"
+done
+
+export PYTHONPATH="${TRAINING_ROOT}:${PYTHONPATH:-}"
+
 mapfile -t RESOLVED_CONFIG_VALUES < <(
-  cd "${TRAINING_ROOT}" && "${PYTHON_BIN}" - <<'PY'
+  cd "${TRAINING_ROOT}" && "${UV_RUN_PYTHON[@]}" - <<'PY'
 from pathlib import Path
 import os
 
@@ -204,12 +221,13 @@ fi
 mkdir -p "$(dirname "${ONNX_ABS_PATH}")" "$(dirname "${ENGINE_ABS_PATH}")"
 
 cd "${TRAINING_ROOT}"
-"${PYTHON_BIN}" -m src.infra.onnx.export_recognizer_onnx \
+"${UV_RUN_PYTHON[@]}" -m src.infra.onnx.export_recognizer_onnx \
   --project-root "${PROJECT_ROOT}" \
   --checkpoint "${CHECKPOINT_ABS_PATH}" \
   --output "${ONNX_ABS_PATH}" \
   --config "${CONFIG_ABS_PATH}" \
-  --env "${ENV_ABS_PATH}"
+  --env "${ENV_ABS_PATH}" \
+  --exporter legacy
 
 TRT_FLAGS=()
 

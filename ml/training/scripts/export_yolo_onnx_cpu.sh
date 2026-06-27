@@ -5,7 +5,7 @@ MODE="local"
 PROJECT_ROOT="${PWD}"
 ENV_PATH="ml/training/config/.env.example"
 WEIGHTS_PATH="data/checkpoint/yolo/weights/best.pt"
-OUTPUT_ENGINE_PATH="artifacts/tensorrt/yolo.engine"
+OUTPUT_ENGINE_PATH="artifacts/onnx/detection.onnx"
 YOLO_CONFIG_PATH="ml/training/config/training/yolo/config.yaml"
 
 resolve_path() {
@@ -151,6 +151,6 @@ loader = ConfigLoader(
 config = loader.load_yolo_config(str(yolo_config_path))
 trainer = YoloTrainer(config=config)
 trainer.load_model_best_weights(str(weights_path))
-trainer.export_tensorrt(output_engine_path)
-print(f"YOLO TensorRT engine exported: {output_engine_path}")
+trainer.export_onnx(output_engine_path)
+print(f"YOLO ONNX model exported: {output_engine_path}")
 PY
