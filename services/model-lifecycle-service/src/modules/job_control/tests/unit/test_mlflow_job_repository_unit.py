@@ -1,0 +1,118 @@
+from __future__ import annotations
+
+import sys
+import unittest
+from contextlib import asynccontextmanager
+from datetime import datetime
+from pathlib import Path
+
+
+SERVICE_ROOT = Path(__file__).resolve().parents[5]
+service_root = str(SERVICE_ROOT)
+if service_root not in sys.path:
+    sys.path.insert(0, service_root)
+
+from src.platform.logger import Logger  # noqa: E402
+from src.modules.job_control.adapters.outbound.persistence.postgres.mlflow_job_repository import (  # noqa: E402
+    DEFAULT_MLFLOW_RETURNING,
+    MLflowJobRepository,
+)
+
+
+class _FakeConnection:
+    def __init__(self) -> None:
+        self.fetchrow_result = None
+        self.fetchrow_calls: list[tuple[object, tuple[object, ...]]] = []
+
+    async def fetchrow(self, query: object, *args: object, **params: object) -> object:
+        self.fetchrow_calls.append((query, tuple(args)))
+        return self.fetchrow_result
+
+
+class _FakeTransaction:
+    def __init__(self, connection: _FakeConnection) -> None:
+        self._connection = connection
+
+    @asynccontextmanager
+    async def transaction(self):
+        yield self._connection
+
+
+class MLflowJobRepositoryUnitTest(unittest.IsolatedAsyncioTestCase):
+    async def test_claim_next_pending_job_uses_configured_event_type(self) -> None:
+        connection = _FakeConnection()
+        connection.fetchrow_result = {"request_id": "req-1", "status": "PROCESSING"}
+        repository = MLflowJobRepository(
+            transaction=_FakeTransaction(connection),
+            logger=Logger(name="test.mlflow_repo"),
+            event_type="yolo_detector",
+        )
+
+        claimed = await repository.claim_next_pending_job(server_id="worker-1")
+
+        assert claimed is not None
+        self.assertEqual(claimed.request_id, "req-1")
+        self.assertEqual(claimed.event_type, "yolo_detector")
+        self.assertEqual(claimed.status, "PROCESSING")
+        query, params = connection.fetchrow_calls[0]
+        self.assertIn("e.event_type = 'yolo_detector'", query)
+        self.assertIn("e.payload->>'git_commit' AS git_commit", query)
+        self.assertIsInstance(params[0], datetime)
+        self.assertEqual(params[1], "worker-1")
+        self.assertIsInstance(params[2], datetime)
+        self.assertEqual(len(params), 3)
+
+    async def test_claim_next_pending_job_binds_stale_cutoff_parameter(self) -> None:
+        connection = _FakeConnection()
+        repository = MLflowJobRepository(
+            transaction=_FakeTransaction(connection),
+            logger=Logger(name="test.mlflow_repo"),
+            event_type="yolo_detector",
+            reclaim_timeout_seconds=1800,
+        )
+
+        await repository.claim_next_pending_job(server_id="worker-1")
+
+        query, params = connection.fetchrow_calls[0]
+        self.assertIn("e.updated_at < $1", query)
+        self.assertIn("running.updated_at >= $3", query)
+        self.assertEqual(params[1], "worker-1")
+        self.assertIsNotNone(params[0])
+        self.assertIsNotNone(params[2])
+
+    async def test_claim_next_pending_job_adds_legacy_payload_event_filter_when_requested(self) -> None:
+        connection = _FakeConnection()
+        repository = MLflowJobRepository(
+            transaction=_FakeTransaction(connection),
+            logger=Logger(name="test.mlflow_repo"),
+            event_type="vit_ctc_deepseek",
+            event_filter="tracking",
+        )
+
+        await repository.claim_next_pending_job(server_id="worker-1")
+
+        query, _ = connection.fetchrow_calls[0]
+        self.assertIn("AND e.payload->>'event' = 'tracking'", query)
+
+    async def test_claim_next_pending_job_adds_model_name_filter(self) -> None:
+        connection = _FakeConnection()
+        repository = MLflowJobRepository(
+            transaction=_FakeTransaction(connection),
+            logger=Logger(name="test.mlflow_repo"),
+            event_type="yolo_detector",
+            model_name_filter="detector",
+        )
+
+        await repository.claim_next_pending_job(server_id="worker-1")
+
+        query, _ = connection.fetchrow_calls[0]
+        self.assertIn("AND e.payload->>'model_name' = 'detector'", query)
+
+    def test_default_mlflow_returning_contains_expected_projection(self) -> None:
+        self.assertIn("e.payload->>'model_name' AS model_name", DEFAULT_MLFLOW_RETURNING)
+        self.assertIn("e.payload->>'checkpoint_best_name' AS checkpoint_best_name", DEFAULT_MLFLOW_RETURNING)
+        self.assertIn("e.payload->>'event' AS event", DEFAULT_MLFLOW_RETURNING)
+
+
+if __name__ == "__main__":
+    unittest.main()
