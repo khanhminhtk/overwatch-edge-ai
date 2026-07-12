@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from psycopg import sql
 
@@ -28,6 +28,21 @@ e.payload->>'version' AS version,
 e.status
 """
 
+DEFAULT_MLFLOW_PAYLOAD_KEYS = (
+    "model_name",
+    "model_version",
+    "git_commit",
+    "checkpoint_best_name",
+    "checkpoint_last_name",
+    "output_path",
+    "event",
+    "version",
+)
+
+
+def _build_default_payload(row: dict[str, Any]) -> dict[str, Any]:
+    return {key: row.get(key) for key in DEFAULT_MLFLOW_PAYLOAD_KEYS}
+
 
 class MLflowJobRepository:
     def __init__(
@@ -39,6 +54,8 @@ class MLflowJobRepository:
         reclaim_timeout_seconds: int = 1800,
         event_filter: str | None = None,
         model_name_filter: str | None = None,
+        returning: sql.SQL | None = None,
+        payload_builder: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
     ) -> None:
         self._claim_repository = PostgresJobClaimRepository(
             transaction=transaction,
@@ -48,6 +65,8 @@ class MLflowJobRepository:
         self._reclaim_timeout_seconds = reclaim_timeout_seconds
         self._event_filter = event_filter
         self._model_name_filter = model_name_filter
+        self._returning = returning or sql.SQL(DEFAULT_MLFLOW_RETURNING)
+        self._payload_builder = payload_builder or _build_default_payload
 
     async def claim_next_pending_job(self, *, server_id: str) -> ClaimedJobDto | None:
         row = await self._claim_repository.claim_next_pending_job(
@@ -55,23 +74,14 @@ class MLflowJobRepository:
             event_type=self._event_type,
             reclaim_timeout_seconds=self._reclaim_timeout_seconds,
             additional_conditions=self._build_additional_conditions(),
-            returning=sql.SQL(DEFAULT_MLFLOW_RETURNING),
+            returning=self._returning,
         )
         if row is None:
             return None
         return ClaimedJobDto(
             request_id=str(row["request_id"]),
             event_type=self._event_type,
-            payload={
-                "model_name": row.get("model_name"),
-                "model_version": row.get("model_version"),
-                "git_commit": row.get("git_commit"),
-                "checkpoint_best_name": row.get("checkpoint_best_name"),
-                "checkpoint_last_name": row.get("checkpoint_last_name"),
-                "output_path": row.get("output_path"),
-                "event": row.get("event"),
-                "version": row.get("version"),
-            },
+            payload=self._payload_builder(dict(row)),
             status=str(row["status"]),
         )
 

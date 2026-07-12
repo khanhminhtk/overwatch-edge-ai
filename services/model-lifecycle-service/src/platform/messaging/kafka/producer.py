@@ -149,6 +149,30 @@ if __name__ == "__main__":
     #     )
     #     print(f"Published training: event_type={event_type} mode={mode} request_id={payload['request_id']}")
 
+    print("\n--- Publishing dataset messages ---")
+    for event_type, subset_percent in [
+        ("dataset_requested_detection", 10.0),
+        ("dataset_requested_recognizer", 15.0),
+    ]:
+        dataset_payload = {
+            "source_data_path": f"/home/minhtk/code/overwatch-edge-ai/worktree/backend_nexus/ml/training/data/{'detection' if 'detection' in event_type else 'recognizer'}",
+            "subset_percent": subset_percent,
+            "output_root": "/home/minhtk/code/overwatch-edge-ai/worktree/backend_nexus/ml/training/data",
+            "dataset_version": "v1",
+        }
+        payload = {
+            "request_id": f"dataset-{time.time_ns()}",
+            "event_type": event_type,
+            "payload": dataset_payload,
+        }
+        producer.publish(
+            topic="model.lifecycle.dataset",
+            key=event_type.encode("utf-8"),
+            value=json.dumps(payload).encode("utf-8"),
+            headers=[("content-type", b"application/json")],
+        )
+        print(f"Published dataset: event_type={event_type} subset_percent={subset_percent} request_id={payload['request_id']}")
+
     # print("\n--- Publishing download messages ---")
     # for event_type, model_name, checkpoint_best_name, checkpoint_last_name, download_dir in [
     #     ("yolo_detector", "yolo_detector", "best.pt", "last.pt", "data/download")
