@@ -143,6 +143,43 @@ class MLflowJobRepositoryUnitTest(unittest.IsolatedAsyncioTestCase):
             "data/test-downloads/vit_ctc_deepseek/best_cer.pt",
         )
 
+    async def test_claim_next_pending_job_accepts_string_returning_projection(self) -> None:
+        connection = _FakeConnection()
+        connection.fetchrow_result = {
+            "request_id": "req-cl-1",
+            "status": "PROCESSING",
+            "raw_dir": "/tmp/raw",
+            "output_dir": "/tmp/out",
+            "class_id": "0",
+        }
+        repository = MLflowJobRepository(
+            transaction=_FakeTransaction(connection),
+            logger=Logger(name="test.mlflow_repo"),
+            event_type="continual_learning_requested",
+            returning="""
+e.id,
+e.request_id,
+e.payload->>'raw_dir' AS raw_dir,
+e.payload->>'output_dir' AS output_dir,
+e.payload->>'class_id' AS class_id,
+e.status
+""",
+            payload_builder=lambda row: {
+                "raw_dir": row.get("raw_dir"),
+                "output_dir": row.get("output_dir"),
+                "class_id": row.get("class_id"),
+            },
+        )
+
+        claimed = await repository.claim_next_pending_job(server_id="worker-1")
+
+        assert claimed is not None
+        self.assertEqual(claimed.request_id, "req-cl-1")
+        self.assertEqual(claimed.payload["raw_dir"], "/tmp/raw")
+        query, _ = connection.fetchrow_calls[0]
+        self.assertIn("e.request_id", query)
+        self.assertIn("e.payload->>'raw_dir' AS raw_dir", query)
+
 
 if __name__ == "__main__":
     unittest.main()

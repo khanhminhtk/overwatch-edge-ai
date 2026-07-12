@@ -54,7 +54,7 @@ class MLflowJobRepository:
         reclaim_timeout_seconds: int = 1800,
         event_filter: str | None = None,
         model_name_filter: str | None = None,
-        returning: sql.SQL | None = None,
+        returning: sql.SQL | str | None = None,
         payload_builder: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
     ) -> None:
         self._claim_repository = PostgresJobClaimRepository(
@@ -65,7 +65,7 @@ class MLflowJobRepository:
         self._reclaim_timeout_seconds = reclaim_timeout_seconds
         self._event_filter = event_filter
         self._model_name_filter = model_name_filter
-        self._returning = returning or sql.SQL(DEFAULT_MLFLOW_RETURNING)
+        self._returning = self._normalize_returning(returning)
         self._payload_builder = payload_builder or _build_default_payload
 
     async def claim_next_pending_job(self, *, server_id: str) -> ClaimedJobDto | None:
@@ -96,3 +96,11 @@ class MLflowJobRepository:
                 " AND e.payload->>'model_name' = {model_name_filter}"
             ).format(model_name_filter=sql.Literal(self._model_name_filter))
         return additional_conditions
+
+    @staticmethod
+    def _normalize_returning(returning: sql.SQL | str | None) -> sql.SQL:
+        if returning is None:
+            return sql.SQL(DEFAULT_MLFLOW_RETURNING)
+        if isinstance(returning, str):
+            return sql.SQL(returning)
+        return returning

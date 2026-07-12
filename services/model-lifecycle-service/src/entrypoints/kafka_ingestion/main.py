@@ -182,7 +182,7 @@ def main() -> None:
         section="PostgresSql",
     )
 
-    job_names = ["mlflow_tracking", "mlflow_download", "export_onnx", "training", "dataset"]
+    job_names = ["mlflow_tracking", "mlflow_download", "export_onnx", "training", "dataset", "continual_learning"]
 
     jobs: dict[str, KafkaJobConfig] = {}
     for name in job_names:
