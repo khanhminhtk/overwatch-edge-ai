@@ -1,18 +1,27 @@
 from __future__ import annotations
 
 import asyncio
-import math
 import socket
-from pathlib import Path
 from typing import Any
 
 from psycopg import sql
 
+from src.bootstrap import (
+    SERVICE_ROOT,
+    build_success_event_publisher,
+    load_job_control_config,
+    load_kafka_config,
+    load_postgres_config,
+    resolve_reclaim_timeout,
+    run_runners_until_shutdown,
+    start_postgres_runtime,
+    validate_runtime_inputs,
+)
 from src.modules.continual_learning.adapters.inbound.job_control.continual_learning_job_handler import (
     ContinualLearningJobHandler,
 )
-from src.modules.job_control.adapters.outbound.persistence.postgres.mlflow_job_repository import (
-    MLflowJobRepository,
+from src.modules.job_control.adapters.outbound.persistence.postgres.postgres_claimed_job_repository import (
+    PostgresClaimedJobRepository,
 )
 from src.modules.job_control.adapters.outbound.persistence.postgres.postgres_job_record_repository import (
     PostgresJobRecordRepository,
@@ -20,8 +29,8 @@ from src.modules.job_control.adapters.outbound.persistence.postgres.postgres_job
 from src.modules.job_control.adapters.outbound.scheduler.polling_job_runner import (
     PollingJobRunner,
 )
-from src.modules.job_control.application.use_case.claim_mlflow_tracking_job import (
-    ClaimMlflowTrackingJob,
+from src.modules.job_control.application.use_case.claim_next_pending_job import (
+    ClaimNextPendingJob,
 )
 from src.modules.job_control.application.use_case.mark_job_failed import (
     MarkJobFailed,
@@ -32,21 +41,10 @@ from src.modules.job_control.application.use_case.mark_job_processed import (
 from src.modules.job_control.application.use_case.process_next_job import (
     ProcessNextJob,
 )
-from src.platform.config import ConfigLoader
 from src.platform.logger import Logger, LoggerConfig
-from src.platform.messaging.kafka.config import KafkaConfig
-from src.platform.persistence.postgres.config import PostgresConfig
-from src.platform.persistence.postgres.kafka_event_schema_guard import (
-    KafkaEventSchemaGuard,
-)
-from src.platform.persistence.postgres.pool import PostgresPool
 from src.platform.persistence.postgres.transaction import PostgresTransaction
+from src.platform.config import ConfigLoader
 from src.platform.vision import GoogleVisionConfig, GoogleVisionOCR
-
-SERVICE_ROOT = Path(__file__).resolve().parents[3]
-CONFIG_DIR = SERVICE_ROOT / "config"
-ENV_FILE = CONFIG_DIR / ".env"
-CONFIG_FILE = CONFIG_DIR / "model_lifecycle_orchestrator_config.yaml"
 
 CL_RETURNING_SQL = """
 e.id,
@@ -66,32 +64,19 @@ def _build_cl_payload(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _validate_runtime_inputs(
-    idle_sleep_seconds: float,
-    reclaim_timeout_seconds: int,
-) -> None:
-    if not math.isfinite(idle_sleep_seconds) or idle_sleep_seconds <= 0:
-        raise ValueError("idle_sleep_seconds must be a finite number greater than 0")
-    if reclaim_timeout_seconds <= 0:
-        raise ValueError("reclaim_timeout_seconds must be greater than 0")
-
-    missing_paths = [path for path in (CONFIG_FILE, ENV_FILE) if not path.exists()]
-    if missing_paths:
-        missing = ", ".join(str(path) for path in missing_paths)
-        raise FileNotFoundError(f"Required daemon config files not found: {missing}")
-
-
 def _build_runner(
     *,
     event_type: str,
+    job_name: str,
     server_id: str,
     transaction: PostgresTransaction,
     record_repository: PostgresJobRecordRepository,
     handler: ContinualLearningJobHandler,
     idle_sleep_seconds: float,
     reclaim_timeout_seconds: int,
+    success_event_publisher,
 ) -> PollingJobRunner:
-    claim_repository = MLflowJobRepository(
+    claim_repository = PostgresClaimedJobRepository(
         transaction=transaction,
         logger=Logger(f"ContinualLearningJobRepo-{event_type}"),
         event_type=event_type,
@@ -100,11 +85,13 @@ def _build_runner(
         payload_builder=_build_cl_payload,
     )
     process_next_job = ProcessNextJob(
-        claim_job=ClaimMlflowTrackingJob(repository=claim_repository),
+        claim_job=ClaimNextPendingJob(repository=claim_repository),
         handler=handler,
         mark_processed=MarkJobProcessed(repository=record_repository),
         mark_failed=MarkJobFailed(repository=record_repository),
         logger=Logger(f"ProcessNextContinualLearningJob-{event_type}"),
+        job_name=job_name,
+        success_event_publisher=success_event_publisher,
     )
     return PollingJobRunner(
         process_next_job=process_next_job,
@@ -117,30 +104,16 @@ def _build_runner(
 
 async def async_main(
     idle_sleep_seconds: float,
-    reclaim_timeout_seconds: int,
+    reclaim_timeout_seconds: int | None,
 ) -> None:
     Logger.configure(LoggerConfig())
     logger = Logger("ContinualLearningDaemon")
     logger.info("[CONTINUAL_LEARNING_DAEMON_BOOTSTRAP]")
-    _validate_runtime_inputs(idle_sleep_seconds, reclaim_timeout_seconds)
+    validate_runtime_inputs(idle_sleep_seconds, reclaim_timeout_seconds)
 
-    kafka_config = ConfigLoader.load(
-        KafkaConfig,
-        yaml_files=[CONFIG_FILE],
-        env_files=[ENV_FILE],
-        section={
-            "kafka": None,
-            "kafka.defaults.consumer": "consumer_config",
-            "kafka.defaults.producer": "producer_config",
-            "kafka.jobs": "jobs",
-        },
-    )
-    pg_config = ConfigLoader.load(
-        PostgresConfig,
-        yaml_files=[CONFIG_FILE],
-        env_files=[ENV_FILE],
-        section="PostgresSql",
-    )
+    kafka_config = load_kafka_config()
+    pg_config = load_postgres_config()
+    job_control_config = load_job_control_config()
 
     job_config = kafka_config.jobs.get("continual_learning")
     if job_config is None:
@@ -159,24 +132,29 @@ async def async_main(
         return
 
     event_type = event_types[0]
+    resolved_reclaim_timeout_seconds = resolve_reclaim_timeout(
+        job_name="continual_learning",
+        cli_reclaim_timeout_seconds=reclaim_timeout_seconds,
+        job_control_config=job_control_config,
+    )
 
     vision_config = ConfigLoader.load(
         GoogleVisionConfig,
-        yaml_files=[CONFIG_FILE],
-        env_files=[ENV_FILE],
+        yaml_files=[SERVICE_ROOT / "config" / "model_lifecycle_orchestrator_config.yaml"],
+        env_files=[SERVICE_ROOT / "config" / ".env"],
         section="GoogleVision",
     )
     vision_config.convert_path_to_absolute(str(SERVICE_ROOT))
     vision_model = GoogleVisionOCR(config=vision_config)
 
-    pool = PostgresPool(dsn=pg_config.to_dsn(), logger=logger)
-    await pool.start()
-    async with pool.acquire() as connection:
-        await KafkaEventSchemaGuard(logger=logger).ensure_indexes(connection)
-    transaction = PostgresTransaction(pool=pool)
-    record_repository = PostgresJobRecordRepository(
-        transaction=transaction,
+    pool, transaction, record_repository = await start_postgres_runtime(
+        pg_config=pg_config,
         logger=logger,
+    )
+    success_event_publisher = build_success_event_publisher(
+        kafka_config=kafka_config,
+        job_control_config=job_control_config,
+        logger=Logger("ContinualLearningJobSuccessEventPublisher"),
     )
     handler = ContinualLearningJobHandler(
         vision_model=vision_model,
@@ -185,12 +163,14 @@ async def async_main(
 
     runner = _build_runner(
         event_type=event_type,
+        job_name="continual_learning",
         server_id=socket.gethostname(),
         transaction=transaction,
         record_repository=record_repository,
         handler=handler,
         idle_sleep_seconds=idle_sleep_seconds,
-        reclaim_timeout_seconds=reclaim_timeout_seconds,
+        reclaim_timeout_seconds=resolved_reclaim_timeout_seconds,
+        success_event_publisher=success_event_publisher,
     )
 
     logger.info(
@@ -198,6 +178,7 @@ async def async_main(
         f"event_type={event_type}",
         f"topic={job_config.topic}",
         f"group_id={job_config.group_id}",
+        f"reclaim_timeout_seconds={resolved_reclaim_timeout_seconds}",
     )
     logger.info(
         "[CONTINUAL_LEARNING_DAEMON_MODE]",
@@ -205,7 +186,10 @@ async def async_main(
         "Run kafka_ingestion.main to ingest Kafka messages into Postgres first.",
     )
     try:
-        await runner.run_forever()
+        await run_runners_until_shutdown(
+            runners=[runner],
+            logger=logger,
+        )
     except asyncio.CancelledError:
         logger.info("[CONTINUAL_LEARNING_DAEMON_CANCELLED]")
     finally:
@@ -228,8 +212,8 @@ def main() -> None:
     parser.add_argument(
         "--reclaim-timeout-seconds",
         type=int,
-        default=300,
-        help="Seconds after which a PROCESSING job is considered stale and reclaimable (default: 300)",
+        default=None,
+        help="Override reclaim timeout seconds for stale PROCESSING jobs (default: from config)",
     )
     args = parser.parse_args()
 

@@ -6,7 +6,7 @@ from src.modules.job_control.application.ports.job_claim_repository import (
 )
 
 
-class ClaimMlflowTrackingJob:
+class ClaimNextPendingJob:
     def __init__(self, *, repository: JobClaimRepository) -> None:
         self._repository = repository
 

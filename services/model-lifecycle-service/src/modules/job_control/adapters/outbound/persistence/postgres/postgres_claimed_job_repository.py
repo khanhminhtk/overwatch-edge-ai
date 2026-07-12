@@ -4,17 +4,17 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from psycopg import sql
 
-from src.modules.job_control.application.dto.claimed_job_dto import ClaimedJobDto
 from src.modules.job_control.adapters.outbound.persistence.postgres.postgres_job_claim_repository import (
     PostgresJobClaimRepository,
 )
+from src.modules.job_control.application.dto.claimed_job_dto import ClaimedJobDto
 from src.platform.logger import Logger
 
 if TYPE_CHECKING:
     from src.platform.persistence.postgres.transaction import PostgresTransaction
 
 
-DEFAULT_MLFLOW_RETURNING = """
+DEFAULT_JOB_RETURNING = """
 e.id,
 e.request_id,
 e.payload->>'model_name' AS model_name,
@@ -28,7 +28,7 @@ e.payload->>'version' AS version,
 e.status
 """
 
-DEFAULT_MLFLOW_PAYLOAD_KEYS = (
+DEFAULT_JOB_PAYLOAD_KEYS = (
     "model_name",
     "model_version",
     "git_commit",
@@ -41,10 +41,10 @@ DEFAULT_MLFLOW_PAYLOAD_KEYS = (
 
 
 def _build_default_payload(row: dict[str, Any]) -> dict[str, Any]:
-    return {key: row.get(key) for key in DEFAULT_MLFLOW_PAYLOAD_KEYS}
+    return {key: row.get(key) for key in DEFAULT_JOB_PAYLOAD_KEYS}
 
 
-class MLflowJobRepository:
+class PostgresClaimedJobRepository:
     def __init__(
         self,
         *,
@@ -100,7 +100,7 @@ class MLflowJobRepository:
     @staticmethod
     def _normalize_returning(returning: sql.SQL | str | None) -> sql.SQL:
         if returning is None:
-            return sql.SQL(DEFAULT_MLFLOW_RETURNING)
+            return sql.SQL(DEFAULT_JOB_RETURNING)
         if isinstance(returning, str):
             return sql.SQL(returning)
         return returning

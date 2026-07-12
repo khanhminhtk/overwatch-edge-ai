@@ -75,3 +75,24 @@ class PollingJobRunner:
             f"server_id={self._server_id}",
             f"event_type={self._event_type}",
         )
+
+    async def shutdown(self, *, reason: str) -> None:
+        self._stop_requested = True
+        self._logger.info(
+            "[JOB_POLLING_RUNNER_SHUTDOWN_REQUESTED]",
+            f"server_id={self._server_id}",
+            f"event_type={self._event_type}",
+            f"reason={reason}",
+        )
+        try:
+            await self._process_next_job.fail_inflight_job(
+                server_id=self._server_id,
+                reason=reason,
+            )
+        except Exception:
+            self._logger.exception(
+                "[JOB_POLLING_RUNNER_SHUTDOWN_FAILED]",
+                f"server_id={self._server_id}",
+                f"event_type={self._event_type}",
+                f"reason={reason}",
+            )

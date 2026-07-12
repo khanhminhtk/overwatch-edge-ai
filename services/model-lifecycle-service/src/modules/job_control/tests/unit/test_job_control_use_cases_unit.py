@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 import unittest
 from pathlib import Path
@@ -16,8 +17,8 @@ from src.modules.job_control.application.dto.consume_event_command import (  # n
     ConsumeEventCommand,
 )
 from src.modules.job_control.application.dto.job_result_dto import JobResultDto  # noqa: E402
-from src.modules.job_control.application.use_case.claim_mlflow_tracking_job import (  # noqa: E402
-    ClaimMlflowTrackingJob,
+from src.modules.job_control.application.use_case.claim_next_pending_job import (  # noqa: E402
+    ClaimNextPendingJob,
 )
 from src.modules.job_control.application.use_case.ingest_job import (  # noqa: E402
     IngestJob,
@@ -68,7 +69,7 @@ class JobControlUseCasesUnitTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(call.kwargs["job"].event_type, "yolo_detector")
         self.assertEqual(call.kwargs["schema_name"], "mlflow_tracking_job")
 
-    async def test_claim_mlflow_tracking_job_delegates_to_repository(self) -> None:
+    async def test_claim_next_pending_job_delegates_to_repository(self) -> None:
         repository = MagicMock()
         repository.claim_next_pending_job = AsyncMock(
             return_value=ClaimedJobDto(
@@ -78,7 +79,7 @@ class JobControlUseCasesUnitTest(unittest.IsolatedAsyncioTestCase):
                 status="PROCESSING",
             )
         )
-        use_case = ClaimMlflowTrackingJob(repository=repository)
+        use_case = ClaimNextPendingJob(repository=repository)
 
         claimed = await use_case.execute(server_id="worker-1")
 
@@ -324,6 +325,129 @@ class JobControlUseCasesUnitTest(unittest.IsolatedAsyncioTestCase):
             "request_id=req-8",
             "target_status=PROCESSED",
             "attempts=3",
+        )
+
+    async def test_process_next_job_publishes_success_event_after_mark_processed(self) -> None:
+        claim_use_case = MagicMock()
+        claim_use_case.execute = AsyncMock(
+            return_value=ClaimedJobDto(
+                request_id="req-9",
+                event_type="continual_learning_requested",
+                payload={"raw_dir": "/tmp/raw"},
+                status="PROCESSING",
+            )
+        )
+        handler = MagicMock()
+        handler.handle = AsyncMock(return_value=JobResultDto(request_id="req-9", success=True))
+        mark_processed = MagicMock()
+        mark_processed.execute = AsyncMock(return_value=True)
+        mark_failed = MagicMock()
+        mark_failed.execute = AsyncMock(return_value=False)
+        success_event_publisher = MagicMock()
+        logger = MagicMock()
+        use_case = ProcessNextJob(
+            claim_job=claim_use_case,
+            handler=handler,
+            mark_processed=mark_processed,
+            mark_failed=mark_failed,
+            logger=logger,
+            job_name="continual_learning",
+            success_event_publisher=success_event_publisher,
+        )
+
+        with patch(
+            "src.modules.job_control.application.use_case.process_next_job.time.perf_counter",
+            side_effect=[1.0, 1.1],
+        ):
+            await use_case.execute(server_id="worker-1")
+
+        mark_processed.execute.assert_awaited_once_with(request_id="req-9")
+        success_event_publisher.publish.assert_called_once()
+        publish_kwargs = success_event_publisher.publish.call_args.kwargs
+        self.assertEqual(publish_kwargs["job_name"], "continual_learning")
+        self.assertEqual(publish_kwargs["server_id"], "worker-1")
+        self.assertEqual(publish_kwargs["claimed_job"].request_id, "req-9")
+
+    async def test_process_next_job_marks_failed_when_handler_raises(self) -> None:
+        claim_use_case = MagicMock()
+        claim_use_case.execute = AsyncMock(
+            return_value=ClaimedJobDto(
+                request_id="req-10",
+                event_type="dataset_requested_detection",
+                payload={"dataset_version": "v1"},
+                status="PROCESSING",
+            )
+        )
+        handler = MagicMock()
+        handler.handle = AsyncMock(side_effect=RuntimeError("handler exploded"))
+        mark_processed = MagicMock()
+        mark_processed.execute = AsyncMock(return_value=False)
+        mark_failed = MagicMock()
+        mark_failed.execute = AsyncMock(return_value=True)
+        logger = MagicMock()
+        use_case = ProcessNextJob(
+            claim_job=claim_use_case,
+            handler=handler,
+            mark_processed=mark_processed,
+            mark_failed=mark_failed,
+            logger=logger,
+        )
+
+        with patch(
+            "src.modules.job_control.application.use_case.process_next_job.time.perf_counter",
+            side_effect=[5.0, 5.05],
+        ):
+            result = await use_case.execute(server_id="worker-1")
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.error_message, "handler exploded")
+        mark_failed.execute.assert_awaited_once_with(
+            request_id="req-10",
+            error_message="handler exploded",
+        )
+        logger.exception.assert_any_call(
+            "[PROCESS_NEXT_JOB_HANDLER_ERROR]",
+            "server_id=worker-1",
+            "request_id=req-10",
+            "event_type=dataset_requested_detection",
+        )
+
+    async def test_process_next_job_fail_inflight_job_marks_failed(self) -> None:
+        claim_use_case = MagicMock()
+        claim_use_case.execute = AsyncMock(
+            return_value=ClaimedJobDto(
+                request_id="req-11",
+                event_type="yolo_detector",
+                payload={"model_name": "yolo_detector"},
+                status="PROCESSING",
+            )
+        )
+        handler = MagicMock()
+        handler.handle = AsyncMock(side_effect=asyncio.CancelledError())
+        mark_processed = MagicMock()
+        mark_processed.execute = AsyncMock(return_value=False)
+        mark_failed = MagicMock()
+        mark_failed.execute = AsyncMock(return_value=True)
+        logger = MagicMock()
+        use_case = ProcessNextJob(
+            claim_job=claim_use_case,
+            handler=handler,
+            mark_processed=mark_processed,
+            mark_failed=mark_failed,
+            logger=logger,
+        )
+
+        with self.assertRaises(asyncio.CancelledError):
+            await use_case.execute(server_id="worker-1")
+
+        await use_case.fail_inflight_job(
+            server_id="worker-1",
+            reason="worker shutdown signal",
+        )
+
+        mark_failed.execute.assert_awaited_once_with(
+            request_id="req-11",
+            error_message="worker shutdown signal",
         )
 
 

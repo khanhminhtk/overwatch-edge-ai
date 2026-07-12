@@ -2,12 +2,24 @@ from __future__ import annotations
 
 import asyncio
 import socket
-import subprocess
 
 from mlflow import MlflowClient
 
-from src.modules.job_control.adapters.outbound.persistence.postgres.mlflow_job_repository import (
-    MLflowJobRepository,
+from src.bootstrap import (
+    CONFIG_FILE,
+    ENV_FILE,
+    REPO_ROOT,
+    build_success_event_publisher,
+    load_job_control_config,
+    load_kafka_config,
+    load_postgres_config,
+    resolve_reclaim_timeout,
+    run_runners_until_shutdown,
+    start_postgres_runtime,
+    validate_runtime_inputs,
+)
+from src.modules.job_control.adapters.outbound.persistence.postgres.postgres_claimed_job_repository import (
+    PostgresClaimedJobRepository,
 )
 from src.modules.job_control.adapters.outbound.persistence.postgres.postgres_job_record_repository import (
     PostgresJobRecordRepository,
@@ -15,8 +27,8 @@ from src.modules.job_control.adapters.outbound.persistence.postgres.postgres_job
 from src.modules.job_control.adapters.outbound.scheduler.polling_job_runner import (
     PollingJobRunner,
 )
-from src.modules.job_control.application.use_case.claim_mlflow_tracking_job import (
-    ClaimMlflowTrackingJob,
+from src.modules.job_control.application.use_case.claim_next_pending_job import (
+    ClaimNextPendingJob,
 )
 from src.modules.job_control.application.use_case.mark_job_failed import (
     MarkJobFailed,
@@ -41,12 +53,6 @@ from src.modules.tracking.domain.value_objects import (
 )
 from src.platform.config import ConfigLoader
 from src.platform.logger import Logger, LoggerConfig
-from src.platform.messaging.kafka.config import KafkaConfig
-from src.platform.persistence.postgres.config import PostgresConfig
-from src.platform.persistence.postgres.kafka_event_schema_guard import (
-    KafkaEventSchemaGuard,
-)
-from src.platform.persistence.postgres.pool import PostgresPool
 from src.platform.persistence.postgres.transaction import PostgresTransaction
 from src.platform.tracking.mlflow import MlflowRegistry
 from src.platform.tracking.mlflow.config import MlflowConfig
@@ -90,47 +96,27 @@ def _build_recognizer_download(
 
 async def async_main(
     idle_sleep_seconds: float,
-    reclaim_timeout_seconds: int,
+    reclaim_timeout_seconds: int | None,
     download_timeout_seconds: float,
 ) -> None:
     Logger.configure(LoggerConfig())
     logger = Logger("MLflowDownloadDaemon")
     logger.info("[MLFLOW_DOWNLOAD_DAEMON_BOOTSTRAP]")
+    validate_runtime_inputs(idle_sleep_seconds, reclaim_timeout_seconds)
 
-    pwd = subprocess.run(["pwd"], capture_output=True, text=True).stdout.strip()
-    env_file = f"{pwd}/services/model-lifecycle-service/config/.env"
-    config_file = (
-        f"{pwd}/services/model-lifecycle-service/config/"
-        "model_lifecycle_orchestrator_config.yaml"
-    )
-
-    kafka_config = ConfigLoader.load(
-        KafkaConfig,
-        yaml_files=[config_file],
-        env_files=[env_file],
-        section={
-            "kafka": None,
-            "kafka.defaults.consumer": "consumer_config",
-            "kafka.defaults.producer": "producer_config",
-            "kafka.jobs": "jobs",
-        },
-    )
-    pg_config = ConfigLoader.load(
-        PostgresConfig,
-        yaml_files=[config_file],
-        env_files=[env_file],
-        section="PostgresSql",
-    )
+    kafka_config = load_kafka_config()
+    pg_config = load_postgres_config()
+    job_control_config = load_job_control_config()
     mlflow_config = ConfigLoader.load(
         MlflowConfig,
-        yaml_files=[config_file],
-        env_files=[env_file],
+        yaml_files=[CONFIG_FILE],
+        env_files=[ENV_FILE],
         section="mlflow",
     )
     recognizer_config = ConfigLoader.load(
         RecognizerConfig,
-        yaml_files=[config_file],
-        env_files=[env_file],
+        yaml_files=[CONFIG_FILE],
+        env_files=[ENV_FILE],
         section={
             "mlflow": None,
             "mlflow.recognizer": None,
@@ -138,8 +124,8 @@ async def async_main(
     )
     detection_config = ConfigLoader.load(
         DetectionConfig,
-        yaml_files=[config_file],
-        env_files=[env_file],
+        yaml_files=[CONFIG_FILE],
+        env_files=[ENV_FILE],
         section={
             "mlflow": None,
             "mlflow.detection": None,
@@ -164,15 +150,20 @@ async def async_main(
 
     detection_event_type = event_types[0]
     recognizer_event_type = event_types[1]
+    resolved_reclaim_timeout_seconds = resolve_reclaim_timeout(
+        job_name="mlflow_download",
+        cli_reclaim_timeout_seconds=reclaim_timeout_seconds,
+        job_control_config=job_control_config,
+    )
 
-    pool = PostgresPool(dsn=pg_config.to_dsn(), logger=logger)
-    await pool.start()
-    async with pool.acquire() as connection:
-        await KafkaEventSchemaGuard(logger=logger).ensure_indexes(connection)
-    transaction = PostgresTransaction(pool=pool)
-    record_repository = PostgresJobRecordRepository(
-        transaction=transaction,
+    pool, transaction, record_repository = await start_postgres_runtime(
+        pg_config=pg_config,
         logger=logger,
+    )
+    success_event_publisher = build_success_event_publisher(
+        kafka_config=kafka_config,
+        job_control_config=job_control_config,
+        logger=Logger("MLflowDownloadJobSuccessEventPublisher"),
     )
 
     handler = DownloadJobHandler(
@@ -182,7 +173,7 @@ async def async_main(
         recognizer_event_type=recognizer_event_type,
         detection_default_checkpoint_name=detection_config.best_checkpoint_name,
         recognizer_default_checkpoint_name=recognizer_config.best_checkpoint_name,
-        pwd=pwd,
+        pwd=str(REPO_ROOT),
         download_timeout_seconds=download_timeout_seconds,
         logger=Logger("DownloadJobHandler"),
     )
@@ -190,19 +181,21 @@ async def async_main(
     server_id = socket.gethostname()
 
     def _build_runner(event_type_value: str, name: str) -> PollingJobRunner:
-        claim_repository = MLflowJobRepository(
+        claim_repository = PostgresClaimedJobRepository(
             transaction=transaction,
             logger=Logger(f"MLflowDownloadJobRepo-{name}"),
             event_type=event_type_value,
-            reclaim_timeout_seconds=reclaim_timeout_seconds,
+            reclaim_timeout_seconds=resolved_reclaim_timeout_seconds,
             event_filter="download_requested",
         )
         process_next_job = ProcessNextJob(
-            claim_job=ClaimMlflowTrackingJob(repository=claim_repository),
+            claim_job=ClaimNextPendingJob(repository=claim_repository),
             handler=handler,
             mark_processed=MarkJobProcessed(repository=record_repository),
             mark_failed=MarkJobFailed(repository=record_repository),
             logger=Logger(f"ProcessNextDownloadJob-{name}"),
+            job_name="mlflow_download",
+            success_event_publisher=success_event_publisher,
         )
         return PollingJobRunner(
             process_next_job=process_next_job,
@@ -219,11 +212,12 @@ async def async_main(
         "[MLFLOW_DOWNLOAD_DAEMON_STARTED]",
         f"detection_event_type={detection_event_type}",
         f"recognizer_event_type={recognizer_event_type}",
+        f"reclaim_timeout_seconds={resolved_reclaim_timeout_seconds}",
     )
     try:
-        await asyncio.gather(
-            detection_runner.run_forever(),
-            recognizer_runner.run_forever(),
+        await run_runners_until_shutdown(
+            runners=[detection_runner, recognizer_runner],
+            logger=logger,
         )
     except asyncio.CancelledError:
         logger.info("[MLFLOW_DOWNLOAD_DAEMON_CANCELLED]")
@@ -247,8 +241,8 @@ def main() -> None:
     parser.add_argument(
         "--reclaim-timeout-seconds",
         type=int,
-        default=1800,
-        help="Seconds after which a PROCESSING job is considered stale and reclaimable (default: 1800)",
+        default=None,
+        help="Override reclaim timeout seconds for stale PROCESSING jobs (default: from config)",
     )
     parser.add_argument(
         "--download-timeout-seconds",

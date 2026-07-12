@@ -13,9 +13,9 @@ if service_root not in sys.path:
     sys.path.insert(0, service_root)
 
 from src.platform.logger import Logger  # noqa: E402
-from src.modules.job_control.adapters.outbound.persistence.postgres.mlflow_job_repository import (  # noqa: E402
-    DEFAULT_MLFLOW_RETURNING,
-    MLflowJobRepository,
+from src.modules.job_control.adapters.outbound.persistence.postgres.postgres_claimed_job_repository import (  # noqa: E402
+    DEFAULT_JOB_RETURNING,
+    PostgresClaimedJobRepository,
 )
 
 
@@ -38,13 +38,13 @@ class _FakeTransaction:
         yield self._connection
 
 
-class MLflowJobRepositoryUnitTest(unittest.IsolatedAsyncioTestCase):
+class PostgresClaimedJobRepositoryUnitTest(unittest.IsolatedAsyncioTestCase):
     async def test_claim_next_pending_job_uses_configured_event_type(self) -> None:
         connection = _FakeConnection()
         connection.fetchrow_result = {"request_id": "req-1", "status": "PROCESSING"}
-        repository = MLflowJobRepository(
+        repository = PostgresClaimedJobRepository(
             transaction=_FakeTransaction(connection),
-            logger=Logger(name="test.mlflow_repo"),
+            logger=Logger(name="test.claimed_job_repo"),
             event_type="yolo_detector",
         )
 
@@ -64,9 +64,9 @@ class MLflowJobRepositoryUnitTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_claim_next_pending_job_binds_stale_cutoff_parameter(self) -> None:
         connection = _FakeConnection()
-        repository = MLflowJobRepository(
+        repository = PostgresClaimedJobRepository(
             transaction=_FakeTransaction(connection),
-            logger=Logger(name="test.mlflow_repo"),
+            logger=Logger(name="test.claimed_job_repo"),
             event_type="yolo_detector",
             reclaim_timeout_seconds=1800,
         )
@@ -82,9 +82,9 @@ class MLflowJobRepositoryUnitTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_claim_next_pending_job_adds_legacy_payload_event_filter_when_requested(self) -> None:
         connection = _FakeConnection()
-        repository = MLflowJobRepository(
+        repository = PostgresClaimedJobRepository(
             transaction=_FakeTransaction(connection),
-            logger=Logger(name="test.mlflow_repo"),
+            logger=Logger(name="test.claimed_job_repo"),
             event_type="vit_ctc_deepseek",
             event_filter="tracking",
         )
@@ -96,9 +96,9 @@ class MLflowJobRepositoryUnitTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_claim_next_pending_job_adds_model_name_filter(self) -> None:
         connection = _FakeConnection()
-        repository = MLflowJobRepository(
+        repository = PostgresClaimedJobRepository(
             transaction=_FakeTransaction(connection),
-            logger=Logger(name="test.mlflow_repo"),
+            logger=Logger(name="test.claimed_job_repo"),
             event_type="yolo_detector",
             model_name_filter="detector",
         )
@@ -108,11 +108,11 @@ class MLflowJobRepositoryUnitTest(unittest.IsolatedAsyncioTestCase):
         query, _ = connection.fetchrow_calls[0]
         self.assertIn("AND e.payload->>'model_name' = 'detector'", query)
 
-    def test_default_mlflow_returning_contains_expected_projection(self) -> None:
-        self.assertIn("e.payload->>'model_name' AS model_name", DEFAULT_MLFLOW_RETURNING)
-        self.assertIn("e.payload->>'checkpoint_best_name' AS checkpoint_best_name", DEFAULT_MLFLOW_RETURNING)
-        self.assertIn("e.payload->>'output_path' AS output_path", DEFAULT_MLFLOW_RETURNING)
-        self.assertIn("e.payload->>'event' AS event", DEFAULT_MLFLOW_RETURNING)
+    def test_default_job_returning_contains_expected_projection(self) -> None:
+        self.assertIn("e.payload->>'model_name' AS model_name", DEFAULT_JOB_RETURNING)
+        self.assertIn("e.payload->>'checkpoint_best_name' AS checkpoint_best_name", DEFAULT_JOB_RETURNING)
+        self.assertIn("e.payload->>'output_path' AS output_path", DEFAULT_JOB_RETURNING)
+        self.assertIn("e.payload->>'event' AS event", DEFAULT_JOB_RETURNING)
 
     async def test_claim_next_pending_job_includes_download_output_fields_in_payload(self) -> None:
         connection = _FakeConnection()
@@ -128,9 +128,9 @@ class MLflowJobRepositoryUnitTest(unittest.IsolatedAsyncioTestCase):
             "event": "download_requested",
             "version": "1.0",
         }
-        repository = MLflowJobRepository(
+        repository = PostgresClaimedJobRepository(
             transaction=_FakeTransaction(connection),
-            logger=Logger(name="test.mlflow_repo"),
+            logger=Logger(name="test.claimed_job_repo"),
             event_type="vit_ctc_deepseek",
             event_filter="download_requested",
         )
@@ -152,9 +152,9 @@ class MLflowJobRepositoryUnitTest(unittest.IsolatedAsyncioTestCase):
             "output_dir": "/tmp/out",
             "class_id": "0",
         }
-        repository = MLflowJobRepository(
+        repository = PostgresClaimedJobRepository(
             transaction=_FakeTransaction(connection),
-            logger=Logger(name="test.mlflow_repo"),
+            logger=Logger(name="test.claimed_job_repo"),
             event_type="continual_learning_requested",
             returning="""
 e.id,

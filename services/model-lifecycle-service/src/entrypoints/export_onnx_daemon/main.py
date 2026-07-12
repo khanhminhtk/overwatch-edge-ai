@@ -1,17 +1,28 @@
 from __future__ import annotations
 
 import asyncio
-import math
 import socket
-from pathlib import Path
 
+from src.bootstrap import (
+    CONFIG_FILE,
+    ENV_FILE,
+    REPO_ROOT,
+    build_success_event_publisher,
+    load_job_control_config,
+    load_kafka_config,
+    load_postgres_config,
+    resolve_reclaim_timeout,
+    run_runners_until_shutdown,
+    start_postgres_runtime,
+    validate_runtime_inputs,
+)
 from src.modules.exports.adapters.inbound.job_control import ExportJobHandler
 from src.modules.exports.application.use_case import (
     ExportDetectionUseCase,
     ExportRecognizerUseCase,
 )
-from src.modules.job_control.adapters.outbound.persistence.postgres.mlflow_job_repository import (
-    MLflowJobRepository,
+from src.modules.job_control.adapters.outbound.persistence.postgres.postgres_claimed_job_repository import (
+    PostgresClaimedJobRepository,
 )
 from src.modules.job_control.adapters.outbound.persistence.postgres.postgres_job_record_repository import (
     PostgresJobRecordRepository,
@@ -19,8 +30,8 @@ from src.modules.job_control.adapters.outbound.persistence.postgres.postgres_job
 from src.modules.job_control.adapters.outbound.scheduler.polling_job_runner import (
     PollingJobRunner,
 )
-from src.modules.job_control.application.use_case.claim_mlflow_tracking_job import (
-    ClaimMlflowTrackingJob,
+from src.modules.job_control.application.use_case.claim_next_pending_job import (
+    ClaimNextPendingJob,
 )
 from src.modules.job_control.application.use_case.mark_job_failed import (
     MarkJobFailed,
@@ -37,19 +48,7 @@ from src.modules.tracking.domain.value_objects import (
 )
 from src.platform.config import ConfigLoader
 from src.platform.logger import Logger, LoggerConfig
-from src.platform.messaging.kafka.config import KafkaConfig
-from src.platform.persistence.postgres.config import PostgresConfig
-from src.platform.persistence.postgres.kafka_event_schema_guard import (
-    KafkaEventSchemaGuard,
-)
-from src.platform.persistence.postgres.pool import PostgresPool
 from src.platform.persistence.postgres.transaction import PostgresTransaction
-
-SERVICE_ROOT = Path(__file__).resolve().parents[3]
-REPO_ROOT = SERVICE_ROOT.parents[1]
-CONFIG_DIR = SERVICE_ROOT / "config"
-ENV_FILE = CONFIG_DIR / ".env"
-CONFIG_FILE = CONFIG_DIR / "model_lifecycle_orchestrator_config.yaml"
 
 
 def _build_detection_export(
@@ -71,48 +70,18 @@ def _build_recognizer_export(
         logger=logger,
     )
 
-
-def _validate_runtime_inputs(
-    idle_sleep_seconds: float,
-    reclaim_timeout_seconds: int,
-) -> None:
-    if not math.isfinite(idle_sleep_seconds) or idle_sleep_seconds <= 0:
-        raise ValueError("idle_sleep_seconds must be a finite number greater than 0")
-    if reclaim_timeout_seconds <= 0:
-        raise ValueError("reclaim_timeout_seconds must be greater than 0")
-
-    missing_paths = [path for path in (CONFIG_FILE, ENV_FILE) if not path.exists()]
-    if missing_paths:
-        missing = ", ".join(str(path) for path in missing_paths)
-        raise FileNotFoundError(f"Required daemon config files not found: {missing}")
-
-
 async def async_main(
     idle_sleep_seconds: float,
-    reclaim_timeout_seconds: int,
+    reclaim_timeout_seconds: int | None,
 ) -> None:
     Logger.configure(LoggerConfig())
     logger = Logger("ExportOnnxDaemon")
     logger.info("[EXPORT_ONNX_DAEMON_BOOTSTRAP]")
-    _validate_runtime_inputs(idle_sleep_seconds, reclaim_timeout_seconds)
+    validate_runtime_inputs(idle_sleep_seconds, reclaim_timeout_seconds)
 
-    kafka_config = ConfigLoader.load(
-        KafkaConfig,
-        yaml_files=[CONFIG_FILE],
-        env_files=[ENV_FILE],
-        section={
-            "kafka": None,
-            "kafka.defaults.consumer": "consumer_config",
-            "kafka.defaults.producer": "producer_config",
-            "kafka.jobs": "jobs",
-        },
-    )
-    pg_config = ConfigLoader.load(
-        PostgresConfig,
-        yaml_files=[CONFIG_FILE],
-        env_files=[ENV_FILE],
-        section="PostgresSql",
-    )
+    kafka_config = load_kafka_config()
+    pg_config = load_postgres_config()
+    job_control_config = load_job_control_config()
     recognizer_config = ConfigLoader.load(
         RecognizerConfig,
         yaml_files=[CONFIG_FILE],
@@ -150,15 +119,20 @@ async def async_main(
 
     detection_event_type = event_types[0]
     recognizer_event_type = event_types[1]
+    resolved_reclaim_timeout_seconds = resolve_reclaim_timeout(
+        job_name="export_onnx",
+        cli_reclaim_timeout_seconds=reclaim_timeout_seconds,
+        job_control_config=job_control_config,
+    )
 
-    pool = PostgresPool(dsn=pg_config.to_dsn(), logger=logger)
-    await pool.start()
-    async with pool.acquire() as connection:
-        await KafkaEventSchemaGuard(logger=logger).ensure_indexes(connection)
-    transaction = PostgresTransaction(pool=pool)
-    record_repository = PostgresJobRecordRepository(
-        transaction=transaction,
+    pool, transaction, record_repository = await start_postgres_runtime(
+        pg_config=pg_config,
         logger=logger,
+    )
+    success_event_publisher = build_success_event_publisher(
+        kafka_config=kafka_config,
+        job_control_config=job_control_config,
+        logger=Logger("ExportOnnxJobSuccessEventPublisher"),
     )
 
     detection_export = _build_detection_export(
@@ -186,19 +160,21 @@ async def async_main(
         event_type_value: str,
         name: str,
     ) -> PollingJobRunner:
-        claim_repository = MLflowJobRepository(
+        claim_repository = PostgresClaimedJobRepository(
             transaction=transaction,
             logger=Logger(f"ExportOnnxJobRepo-{name}"),
             event_type=event_type_value,
-            reclaim_timeout_seconds=reclaim_timeout_seconds,
+            reclaim_timeout_seconds=resolved_reclaim_timeout_seconds,
             event_filter="export_onnx",
         )
         process_next_job = ProcessNextJob(
-            claim_job=ClaimMlflowTrackingJob(repository=claim_repository),
+            claim_job=ClaimNextPendingJob(repository=claim_repository),
             handler=export_handler,
             mark_processed=MarkJobProcessed(repository=record_repository),
             mark_failed=MarkJobFailed(repository=record_repository),
             logger=Logger(f"ProcessNextExportJob-{name}"),
+            job_name="export_onnx",
+            success_event_publisher=success_event_publisher,
         )
         return PollingJobRunner(
             process_next_job=process_next_job,
@@ -215,11 +191,12 @@ async def async_main(
         "[EXPORT_ONNX_DAEMON_STARTED]",
         f"detection_event_type={detection_event_type}",
         f"recognizer_event_type={recognizer_event_type}",
+        f"reclaim_timeout_seconds={resolved_reclaim_timeout_seconds}",
     )
     try:
-        await asyncio.gather(
-            detection_runner.run_forever(),
-            recognizer_runner.run_forever(),
+        await run_runners_until_shutdown(
+            runners=[detection_runner, recognizer_runner],
+            logger=logger,
         )
     except asyncio.CancelledError:
         logger.info("[EXPORT_ONNX_DAEMON_CANCELLED]")
@@ -243,8 +220,8 @@ def main() -> None:
     parser.add_argument(
         "--reclaim-timeout-seconds",
         type=int,
-        default=1800,
-        help="Seconds after which a PROCESSING job is considered stale and reclaimable (default: 1800)",
+        default=None,
+        help="Override reclaim timeout seconds for stale PROCESSING jobs (default: from config)",
     )
     args = parser.parse_args()
 
