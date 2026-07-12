@@ -39,19 +39,29 @@ kafka:
       compression_type: ${kafka_producer_compression_type}
 
   jobs:
-    train_recognizer:
-      topic: ${kafka_jobs_train_recognizer_topic}
-      group_id: ${kafka_jobs_train_recognizer_group_id}
+    training:
+      topic: ${kafka_jobs_training_topic}
+      group_id: ${kafka_jobs_training_group_id}
+      event_type: "train_requested_recognizer,train_requested_detection"
 
       consumer:
-        max_poll_interval_ms: ${kafka_jobs_train_recognizer_consumer_max_poll_interval_ms}
+        max_poll_interval_ms: ${kafka_jobs_training_consumer_max_poll_interval_ms}
 
-    train_detection:
-      topic: ${kafka_jobs_train_detection_topic}
-      group_id: ${kafka_jobs_train_detection_group_id}
+    dataset:
+      topic: ${kafka_jobs_dataset_topic}
+      group_id: ${kafka_jobs_dataset_group_id}
+      event_type: "dataset_requested_detection,dataset_requested_recognizer"
 
       consumer:
-        max_poll_interval_ms: ${kafka_jobs_train_detection_consumer_max_poll_interval_ms}
+        max_poll_interval_ms: ${kafka_jobs_dataset_consumer_max_poll_interval_ms}
+
+    continual_learning:
+      topic: ${kafka_jobs_continual_learning_topic}
+      group_id: ${kafka_jobs_continual_learning_group_id}
+      event_type: "continual_learning_requested"
+
+      consumer:
+        max_poll_interval_ms: ${kafka_jobs_continual_learning_consumer_max_poll_interval_ms}
 
     export_recognizer_tensorrt:
       topic: ${kafka_jobs_export_recognizer_tensorrt_topic}
@@ -67,9 +77,94 @@ kafka:
       consumer:
         max_poll_interval_ms: ${kafka_jobs_export_yolo_tensorrt_consumer_max_poll_interval_ms}
 
+    export_onnx:
+      topic: ${kafka_jobs_export_onnx_topic}
+      group_id: ${kafka_jobs_export_onnx_group_id}
+      event_type: "${MLFLOW_MODEL_NAME_DETECTION:-yolo_detector},${MLFLOW_MODEL_NAME_RECOGNIZER:-vit_ctc_deepseek}"
+
+      consumer:
+        max_poll_interval_ms: ${kafka_jobs_export_onnx_consumer_max_poll_interval_ms}
+
+    mlflow_download:
+      topic: ${kafka_jobs_mlflow_download_topic}
+      group_id: ${kafka_jobs_mlflow_download_group_id}
+      event_type: "${MLFLOW_MODEL_NAME_DETECTION:-yolo_detector},${MLFLOW_MODEL_NAME_RECOGNIZER:-vit_ctc_deepseek}"
+
+      consumer:
+        max_poll_interval_ms: ${kafka_jobs_mlflow_download_consumer_max_poll_interval_ms}
+
+    mlflow_tracking:
+      topic: ${kafka_jobs_mlflow_tracking_topic}
+      group_id: ${kafka_jobs_mlflow_tracking_group_id}
+      event_type: "${MLFLOW_MODEL_NAME_DETECTION:-yolo_detector},${MLFLOW_MODEL_NAME_RECOGNIZER:-vit_ctc_deepseek}"
+
+      consumer:
+        max_poll_interval_ms: ${kafka_jobs_mlflow_tracking_consumer_max_poll_interval_ms}
+
+job_control:
+  result_topic: ${kafka_jobs_result_topic}
+  reclaim:
+    default_processing_timeout_seconds: ${job_processing_reclaim_timeout_seconds}
+    overrides:
+      training: ${job_processing_reclaim_timeout_seconds_training}
+      dataset: ${job_processing_reclaim_timeout_seconds_dataset}
+      continual_learning: ${job_processing_reclaim_timeout_seconds_continual_learning}
+      export_onnx: ${job_processing_reclaim_timeout_seconds_export_onnx}
+      mlflow_download: ${job_processing_reclaim_timeout_seconds_mlflow_download}
+      mlflow_tracking: ${job_processing_reclaim_timeout_seconds_mlflow_tracking}
+
+mlflow:
+  tracking_uri: ${MLFLOW_TRACKING_URI:-http://localhost:5000}
+  deployment_stage: ${MLFLOW_DEPLOYMENT_STAGE:-training}
+  framework: ${FRAMEWORK_NAME:-unknown_framework}
+  hardware:
+    gpu_host_name: ${GPU_HOST_NAME:-unknown_host}
+    gpu_name: ${GPU_NAME:-unknown_gpu}
+    gpu_memory_gb: ${GPU_MEMORY_GB:-0}
+    cuda_version: ${CUDA_VERSION:-unknown_cuda_version}
+    driver_version: ${GPU_DRIVER_VERSION:-unknown_driver_version}
+  detection:
+    model_type: ${DETECT_MODEL_TYPE:-detector}
+    task_name: ${DETECT_TASK_NAME:-detection}
+    model_name: ${MLFLOW_MODEL_NAME_DETECTION:-yolo_detector}
+    docker_image: ${DETECT_DOCKER_IMAGE:-}
+    dataset_zip_path: ${DETECT_DATASET_ZIP_PATH:-}
+    manifest_path: ${DETECT_MANIFEST_PATH:-}
+    results_csv_path: ${DETECT_RESULTS_CSV_PATH:-}
+    checkpoint_dir: ${DETECT_SAVE_DIR:-}
+    best_checkpoint_name: ${DETECT_BEST_CHECKPOINT_NAME:-best.pt}
+    last_checkpoint_name: ${DETECT_LAST_CHECKPOINT_NAME:-last.pt}
+    dataset_name: ${DETECT_DATASET_NAME:-unknown_dataset}
+    pipeline_name: ${PIPELINE_NAME_DETECTION:-unknown_pipeline}
+    pipeline_run_id: ${PIPELINE_RUN_ID_DETECTION:-unknown_pipeline_run_id}
+    model_alias: ${MLFLOW_MODEL_ALIAS_DETECTION:-}
+    training_config_path: ${DETECT_TRAINING_CONFIG_PATH}
+    training_env_path: ${DETECT_TRAINING_ENV_PATH}
+  recognizer:
+    model_type: ${RECOG_MODEL_TYPE:-recognizer}
+    task_name: ${RECOG_TASK_NAME:-recognition}
+    model_name: ${MLFLOW_MODEL_NAME_RECOGNIZER:-vit_ctc_deepseek}
+    docker_image: ${RECOG_DOCKER_IMAGE:-}
+    dataset_zip_path: ${RECOG_DATASET_ZIP_PATH:-}
+    manifest_path: ${RECOG_MANIFEST_PATH:-}
+    tensorboard_dir: ${RECOG_TENSORBOARD_DIR:-}
+    checkpoint_dir: ${RECOG_SAVE_DIR:-}
+    best_checkpoint_name: ${RECOG_BEST_CHECKPOINT_NAME:-best_cer.pt}
+    last_checkpoint_name: ${RECOG_LAST_CHECKPOINT_NAME:-last_checkpoint.pt}
+    dataset_name: ${RECOG_DATASET_NAME:-unknown_dataset}
+    pipeline_name: ${PIPELINE_NAME_RECOGNIZER:-unknown_pipeline}
+    pipeline_run_id: ${PIPELINE_RUN_ID_RECOGNIZER:-unknown_pipeline_run_id}
+    model_alias: ${MLFLOW_MODEL_ALIAS_RECOGNIZER:-}
+    training_config_path: ${RECOG_TRAINING_CONFIG_PATH}
+    training_env_path: ${RECOG_TRAINING_ENV_PATH}
+
 PostgresSql:
   host: ${postgresql_host}
   port: ${postgresql_port}
   database: ${postgresql_database}
   user: ${postgresql_user}
   password: ${postgresql_password}
+
+GoogleVision:
+  certificate_path: ${google_vision_certificate_path}
+  image_test_path: ${google_vision_image_test_path}
