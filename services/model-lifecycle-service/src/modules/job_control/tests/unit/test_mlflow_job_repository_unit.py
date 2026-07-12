@@ -111,7 +111,37 @@ class MLflowJobRepositoryUnitTest(unittest.IsolatedAsyncioTestCase):
     def test_default_mlflow_returning_contains_expected_projection(self) -> None:
         self.assertIn("e.payload->>'model_name' AS model_name", DEFAULT_MLFLOW_RETURNING)
         self.assertIn("e.payload->>'checkpoint_best_name' AS checkpoint_best_name", DEFAULT_MLFLOW_RETURNING)
+        self.assertIn("e.payload->>'output_path' AS output_path", DEFAULT_MLFLOW_RETURNING)
         self.assertIn("e.payload->>'event' AS event", DEFAULT_MLFLOW_RETURNING)
+
+    async def test_claim_next_pending_job_includes_download_output_fields_in_payload(self) -> None:
+        connection = _FakeConnection()
+        connection.fetchrow_result = {
+            "request_id": "req-download-1",
+            "status": "PROCESSING",
+            "model_name": "vit_ctc_deepseek",
+            "model_version": "",
+            "git_commit": "abc123",
+            "checkpoint_best_name": "best_cer.pt",
+            "checkpoint_last_name": "last_checkpoint.pt",
+            "output_path": "data/test-downloads/vit_ctc_deepseek/best_cer.pt",
+            "event": "download_requested",
+            "version": "1.0",
+        }
+        repository = MLflowJobRepository(
+            transaction=_FakeTransaction(connection),
+            logger=Logger(name="test.mlflow_repo"),
+            event_type="vit_ctc_deepseek",
+            event_filter="download_requested",
+        )
+
+        claimed = await repository.claim_next_pending_job(server_id="worker-1")
+
+        assert claimed is not None
+        self.assertEqual(
+            claimed.payload["output_path"],
+            "data/test-downloads/vit_ctc_deepseek/best_cer.pt",
+        )
 
 
 if __name__ == "__main__":

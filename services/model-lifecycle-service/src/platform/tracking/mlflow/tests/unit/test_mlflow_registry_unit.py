@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from urllib.error import URLError
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -54,11 +55,18 @@ class MlflowRegistryUnitTest(unittest.TestCase):
             "https://artifact.example/model.bin"
         )
 
-        result = self.registry.export_model_download_url(
-            model_name="my-model",
-            version="7",
-            artifact_path="weights/best.pt",
-        )
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.__exit__.return_value = False
+        with patch(
+            "src.platform.tracking.mlflow.registry.urllib.request.urlopen",
+            return_value=response,
+        ):
+            result = self.registry.export_model_download_url(
+                model_name="my-model",
+                version="7",
+                artifact_path="weights/best.pt",
+            )
 
         self.assertEqual(result, "https://artifact.example/model.bin")
         self.mock_client.get_model_version_download_uri.assert_called_once_with(
@@ -70,12 +78,19 @@ class MlflowRegistryUnitTest(unittest.TestCase):
         self.registry._download_resolver = MagicMock()
         self.registry._download_resolver.download_model_artifact.return_value = "/tmp/best.pt"
 
-        result = self.registry.download_model_artifact(
-            model_name="my-model",
-            version="7",
-            artifact_path="weights/best.pt",
-            output_path="/tmp/best.pt",
-        )
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.__exit__.return_value = False
+        with patch(
+            "src.platform.tracking.mlflow.registry.urllib.request.urlopen",
+            return_value=response,
+        ):
+            result = self.registry.download_model_artifact(
+                model_name="my-model",
+                version="7",
+                artifact_path="weights/best.pt",
+                output_path="/tmp/best.pt",
+            )
 
         self.assertEqual(result, "/tmp/best.pt")
         self.registry._download_resolver.download_model_artifact.assert_called_once_with(
@@ -205,6 +220,34 @@ class MlflowRegistryUnitTest(unittest.TestCase):
         self.mock_client.transition_model_version_stage.assert_called_once_with(
             "model", "2", "Production"
         )
+
+    def test_get_model_version_by_alias_fails_fast_when_tracking_server_unreachable(self) -> None:
+        with patch(
+            "src.platform.tracking.mlflow.registry.urllib.request.urlopen",
+            side_effect=URLError("connection refused"),
+        ):
+            with self.assertRaisesRegex(ConnectionError, "unreachable"):
+                self.registry.get_model_version_by_alias("model", "champion")
+
+        self.mock_client.get_model_version_by_alias.assert_not_called()
+
+    def test_non_http_tracking_uri_skips_reachability_probe(self) -> None:
+        registry = MlflowRegistry(client=self.mock_client, tracking_url="file:///tmp/mlruns")
+        registry._download_resolver = MagicMock()
+        registry._download_resolver.download_model_artifact.return_value = "/tmp/best.pt"
+
+        with patch(
+            "src.platform.tracking.mlflow.registry.urllib.request.urlopen",
+        ) as urlopen_mock:
+            result = registry.download_model_artifact(
+                model_name="my-model",
+                version="7",
+                artifact_path="weights/best.pt",
+                output_path="/tmp/best.pt",
+            )
+
+        self.assertEqual(result, "/tmp/best.pt")
+        urlopen_mock.assert_not_called()
 
     def test_client_property(self) -> None:
         self.assertIs(self.registry.client, self.mock_client)

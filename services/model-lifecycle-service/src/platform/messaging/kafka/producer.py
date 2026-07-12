@@ -104,28 +104,74 @@ if __name__ == "__main__":
     #     )
     #     print(f"Published tracking: event_type={event_type} request_id={payload['request_id']}")
 
-    print("\n--- Publishing export messages ---")
-    for event_type, model_name, checkpoint_best_name, checkpoint_last_name in [
-        ("yolo_detector", "yolo_detector", "best.pt", "last.pt"),
-        ("vit_ctc_deepseek", "vit_ctc_deepseek", "best_cer.pt", "last_checkpoint.pt"),
-    ]:
-        payload = {
-            "request_id": f"export-{model_name}-{time.time_ns()}",
-            "event_type": event_type,
-            "payload": {
-                "model_name": model_name,
-                "model_version": "1",
-                "git_commit": "abc123",
-                "checkpoint_best_name": checkpoint_best_name,
-                "checkpoint_last_name": checkpoint_last_name,
-                "event": "export_onnx",
-                "version": "1.0",
-            },
-        }
-        producer.publish(
-            topic="model.lifecycle.export.onnx",
-            key=model_name.encode("utf-8"),
-            value=json.dumps(payload).encode("utf-8"),
-            headers=[("content-type", b"application/json")],
-        )
-        print(f"Published export: event_type={event_type} request_id={payload['request_id']}")
+    # print("\n--- Publishing export messages ---")
+    # for event_type, model_name, checkpoint_best_name, checkpoint_last_name in [
+    #     ("yolo_detector", "yolo_detector", "best.pt", "last.pt"),
+    #     ("vit_ctc_deepseek", "vit_ctc_deepseek", "best_cer.pt", "last_checkpoint.pt"),
+    # ]:
+    #     payload = {
+    #         "request_id": f"export-{model_name}-{time.time_ns()}",
+    #         "event_type": event_type,
+    #         "payload": {
+    #             "model_name": model_name,
+    #             "model_version": "1",
+    #             "git_commit": "abc123",
+    #             "checkpoint_best_name": checkpoint_best_name,
+    #             "checkpoint_last_name": checkpoint_last_name,
+    #             "event": "export_onnx",
+    #             "version": "1.0",
+    #         },
+    #     }
+    #     producer.publish(
+    #         topic="model.lifecycle.export.onnx",
+    #         key=model_name.encode("utf-8"),
+    #         value=json.dumps(payload).encode("utf-8"),
+    #         headers=[("content-type", b"application/json")],
+    #     )
+    #     print(f"Published export: event_type={event_type} request_id={payload['request_id']}")
+
+    # print("\n--- Publishing training messages ---")
+    # for event_type, dataset_version, mode in [
+    #     ("train_requested_recognizer", "v1", "dev"),
+    #     ("train_requested_detection", "v2", "dev"),
+    # ]:
+    #     training_payload = {"dataset_version": dataset_version, "mode": mode}
+    #     payload = {
+    #         "request_id": f"training-{time.time_ns()}",
+    #         "event_type": event_type,
+    #         "payload": training_payload,
+    #     }
+    #     producer.publish(
+    #         topic="model.lifecycle.training",
+    #         key=event_type.encode("utf-8"),
+    #         value=json.dumps(payload).encode("utf-8"),
+    #         headers=[("content-type", b"application/json")],
+    #     )
+    #     print(f"Published training: event_type={event_type} mode={mode} request_id={payload['request_id']}")
+
+    # print("\n--- Publishing download messages ---")
+    # for event_type, model_name, checkpoint_best_name, checkpoint_last_name, download_dir in [
+    #     ("yolo_detector", "yolo_detector", "best.pt", "last.pt", "data/download")
+    #     # ("vit_ctc_deepseek", "vit_ctc_deepseek", "best_cer.pt", "last_checkpoint.pt", "data/download"),
+    # ]:
+    #     payload = {
+    #         "request_id": f"download-{model_name}-{time.time_ns()}",
+    #         "event_type": event_type,
+    #         "payload": {
+    #             "model_name": model_name,
+    #             "model_version": "",
+    #             "git_commit": "abc123",
+    #             "checkpoint_best_name": checkpoint_best_name,
+    #             "checkpoint_last_name": checkpoint_last_name,
+    #             "output_path": f"{download_dir}/{model_name}/{checkpoint_best_name}",
+    #             "event": "download_requested",
+    #             "version": "1.0",
+    #         },
+    #     }
+    #     producer.publish(
+    #         topic="model.lifecycle.mlflow.download",
+    #         key=model_name.encode("utf-8"),
+    #         value=json.dumps(payload).encode("utf-8"),
+    #         headers=[("content-type", b"application/json")],
+    #     )
+    #     print(f"Published download: event_type={event_type} request_id={payload['request_id']}")

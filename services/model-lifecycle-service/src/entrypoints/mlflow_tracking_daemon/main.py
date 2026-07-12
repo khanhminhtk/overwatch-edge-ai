@@ -262,6 +262,7 @@ async def async_main(idle_sleep_seconds: float, reclaim_timeout_seconds: int) ->
             logger=Logger(f"MLflowJobRepo-{name}"),
             event_type=event_type_value,
             reclaim_timeout_seconds=reclaim_timeout_seconds,
+            event_filter="tracking_requested",
         )
         if default_checkpoint_names is not None:
             handler = RecognizerTrackingJobHandler(

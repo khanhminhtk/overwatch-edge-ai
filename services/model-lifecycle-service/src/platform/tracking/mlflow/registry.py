@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import urllib.error
+import urllib.parse
+import urllib.request
 from typing import Any
 
 import mlflow
@@ -19,6 +22,8 @@ if not hasattr(mlflow, "set_tracking_url"):
 
 
 class MlflowRegistry(ModelRegistry):
+    _TRACKING_REACHABILITY_TIMEOUT_SECONDS = 3.0
+
     def __init__(
         self,
         client: MlflowClient | None = None,
@@ -119,6 +124,7 @@ class MlflowRegistry(ModelRegistry):
         registered_model_name: str,
         alias: str,
     ) -> Any | None:
+        self._ensure_tracking_server_reachable()
         try:
             return self._client.get_model_version_by_alias(
                 registered_model_name,
@@ -132,6 +138,7 @@ class MlflowRegistry(ModelRegistry):
         registered_model_name: str,
         version: str,
     ) -> Any:
+        self._ensure_tracking_server_reachable()
         return self._client.get_model_version(
             registered_model_name,
             version,
@@ -153,6 +160,7 @@ class MlflowRegistry(ModelRegistry):
         version: str,
         artifact_path: str | None = None,
     ) -> str:
+        self._ensure_tracking_server_reachable()
         return self._download_resolver.export_model_download_url(
             client=self._client,
             model_name=model_name,
@@ -167,6 +175,7 @@ class MlflowRegistry(ModelRegistry):
         artifact_path: str,
         output_path: str,
     ) -> str:
+        self._ensure_tracking_server_reachable()
         return self._download_resolver.download_model_artifact(
             client=self._client,
             model_name=model_name,
@@ -178,6 +187,24 @@ class MlflowRegistry(ModelRegistry):
     @property
     def client(self) -> MlflowClient:
         return self._client
+
+    def _ensure_tracking_server_reachable(self) -> None:
+        parsed = urllib.parse.urlparse(self._tracking_uri)
+        if parsed.scheme not in {"http", "https"}:
+            return
+
+        request = urllib.request.Request(self._tracking_uri)
+        try:
+            with urllib.request.urlopen(
+                request,
+                timeout=self._TRACKING_REACHABILITY_TIMEOUT_SECONDS,
+            ):
+                return
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise ConnectionError(
+                "MLflow tracking server is unreachable: "
+                f"{self._tracking_uri}"
+            ) from exc
 
 
 # if __name__ == "__main__":
