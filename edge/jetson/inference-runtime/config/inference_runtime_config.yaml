@@ -1,0 +1,52 @@
+triton:
+  url: ${triton_url}
+  detector:
+    model_name: ${triton_detector_model_name}
+    model_version: ${triton_detector_model_version}
+  recognizer:
+    model_name: ${triton_recognizer_model_name}
+    model_version: ${triton_recognizer_model_version}
+
+video:
+  source_type: ${video_source_type:-camera}
+  camera_index: ${video_camera_index:-0}
+  stream_url: ${video_stream_url:-}
+  image_path: ${video_image_path:-}
+  video_path: ${video_video_path:-}
+  width: ${video_width}
+  height: ${video_height}
+  fps: ${video_fps}
+
+capture:
+  enabled: ${capture_enabled:-true}
+  success_output_dir: ${capture_success_output_dir:-data/success}
+  fail_output_dir: ${capture_fail_output_dir:-data/fail}
+  success_min_detection_confidence: ${capture_success_min_detection_confidence:-0.50}
+  success_min_ocr_confidence: ${capture_success_min_ocr_confidence:-0.85}
+  fail_max_detection_confidence: ${capture_fail_max_detection_confidence:-0.50}
+  fail_max_ocr_confidence: ${capture_fail_max_ocr_confidence:-0.85}
+  min_frame_difference: ${capture_min_frame_difference:-0.12}
+  min_save_interval_seconds: ${capture_min_save_interval_seconds:-5}
+
+inference:
+  detector:
+    input_width: ${detector_input_width}
+    input_height: ${detector_input_height}
+    confidence_threshold: ${detector_confidence_threshold}
+    nms_threshold: ${detector_nms_threshold}
+  recognizer:
+    num_patches: ${recognizer_num_patches}
+    patch_width: ${recognizer_patch_width}
+    patch_height: ${recognizer_patch_height}
+    mean: ["${recognizer_mean_r}", "${recognizer_mean_g}", "${recognizer_mean_b}"]
+    std: ["${recognizer_std_r}", "${recognizer_std_g}", "${recognizer_std_b}"]
+    vocabulary: "${recognizer_vocabulary}"
+    blank_index: ${recognizer_blank_index}
+    num_classes: ${recognizer_num_classes}
+
+mlflow:
+  tracking_uri: ${mlflow_tracking_uri}
+  detection:
+    model_name: ${mlflow_model_name_detection}
+  recognizer:
+    model_name: ${mlflow_model_name_recognizer}

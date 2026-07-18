@@ -1,0 +1,36 @@
+[project]
+name = "inference-runtime"
+version = "0.1.0"
+description = "Jetson edge inference runtime"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml>=5.4.1",
+    "python-dotenv>=1.2.2",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.1",
+    "numpy>=2.2.6",
+    "opencv-python>=4.13.0.92",
+    "pillow>=10.0.0",
+    "grpcio>=1.63.0,<1.68",
+    "protobuf>=5.26.1,<6",
+    "psutil>=7.2.2",
+    "tritonclient[grpc]>=2.63.0",
+]
+
+[project.scripts]
+inference-webcam = "src.entrypoints.inference_daemon.main:main"
+inference-triton = "src.entrypoints.inference_daemon.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = true
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "ruff>=0.15.12",
+]

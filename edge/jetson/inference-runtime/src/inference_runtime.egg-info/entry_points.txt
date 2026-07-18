@@ -1,0 +1,3 @@
+[console_scripts]
+inference-triton = src.entrypoints.inference_daemon.main:main
+inference-webcam = src.entrypoints.inference_daemon.main:main

@@ -1,6 +1,0 @@
-triton:
-  grpc_url: "${TRITON_GRPC_URL}"
-  detector_model_name: "${DETECTOR_MODEL_NAME}"
-  recognizer_model_name: "${RECOGNIZER_MODEL_NAME}"
-
-source: "${VIDEO_SOURCE}"
