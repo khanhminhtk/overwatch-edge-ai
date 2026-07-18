@@ -98,7 +98,11 @@ class ProcessNextJob:
                     ),
                 )
                 finalized = True
-                self._publish_success_event(server_id=server_id, claimed_job=claimed_job)
+                self._publish_success_event(
+                    server_id=server_id,
+                    claimed_job=claimed_job,
+                    result=result.result,
+                )
                 self._logger.info(
                     "[PROCESS_NEXT_JOB_SUCCEEDED]",
                     f"server_id={server_id}",
@@ -198,6 +202,7 @@ class ProcessNextJob:
         *,
         server_id: str,
         claimed_job: ClaimedJobDto,
+        result: dict[str, object] | None,
     ) -> None:
         if self._success_event_publisher is None:
             return
@@ -206,6 +211,7 @@ class ProcessNextJob:
                 job_name=self._job_name,
                 server_id=server_id,
                 claimed_job=claimed_job,
+                result=result,
             )
         except Exception:
             self._logger.exception(

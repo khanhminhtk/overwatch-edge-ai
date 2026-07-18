@@ -66,7 +66,7 @@ class TrainingJobHandler:
                 f"mode={mode}",
                 f"dataset_version={dataset_version}",
             )
-            await asyncio.to_thread(use_case.execute, spec)
+            training_result = await asyncio.to_thread(use_case.execute, spec)
         except Exception as exc:
             self._logger.exception(
                 "[TRAINING_JOB_FAILED]",
@@ -87,4 +87,9 @@ class TrainingJobHandler:
         return JobResultDto(
             request_id=job.request_id,
             success=True,
+            result={
+                "model_type": model_name,
+                "dataset_version": dataset_version,
+                "duration_ms": training_result.duration_ms,
+            },
         )

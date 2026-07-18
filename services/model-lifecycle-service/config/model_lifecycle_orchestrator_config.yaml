@@ -101,6 +101,14 @@ kafka:
       consumer:
         max_poll_interval_ms: ${kafka_jobs_mlflow_tracking_consumer_max_poll_interval_ms}
 
+    lifecycle:
+      topic: ${kafka_jobs_lifecycle_topic}
+      group_id: ${kafka_jobs_lifecycle_group_id}
+      event_type: "lifecycle_requested"
+
+      consumer:
+        max_poll_interval_ms: ${kafka_jobs_lifecycle_consumer_max_poll_interval_ms}
+
 job_control:
   result_topic: ${kafka_jobs_result_topic}
   reclaim:

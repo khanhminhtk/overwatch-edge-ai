@@ -6,6 +6,8 @@ from src.modules.dataset.application.use_case import (
     CreateGodDatasetDetection,
     CreateGodDatasetRecognizer,
 )
+from src.modules.lifecycle.application import DatasetWorkspaceMaterializer
+from src.modules.lifecycle.domain import LifecycleContext, ModelType
 from src.modules.job_control.application.dto.claimed_job_dto import ClaimedJobDto
 from src.modules.job_control.application.dto.job_result_dto import JobResultDto
 from src.platform.logger import Logger
@@ -19,12 +21,14 @@ class DatasetJobHandler:
         recognizer_dataset: CreateGodDatasetRecognizer,
         detection_event_type: str,
         recognizer_event_type: str,
+        workspace_materializer: DatasetWorkspaceMaterializer | None = None,
         logger: Logger | None = None,
     ) -> None:
         self._detection_dataset = detection_dataset
         self._recognizer_dataset = recognizer_dataset
         self._detection_event_type = detection_event_type
         self._recognizer_event_type = recognizer_event_type
+        self._workspace_materializer = workspace_materializer
         self._logger = logger or Logger("DatasetJobHandler")
 
     async def handle(self, job: ClaimedJobDto) -> JobResultDto:
@@ -51,7 +55,8 @@ class DatasetJobHandler:
             )
 
             if job.event_type == self._detection_event_type:
-                await asyncio.to_thread(
+                model_type = ModelType.DETECTION
+                dataset_result = await asyncio.to_thread(
                     self._detection_dataset.execute,
                     source_data_path=source_data_path,
                     subset_percent=subset_percent,
@@ -59,7 +64,8 @@ class DatasetJobHandler:
                     dataset_version=dataset_version,
                 )
             elif job.event_type == self._recognizer_event_type:
-                await asyncio.to_thread(
+                model_type = ModelType.RECOGNIZER
+                dataset_result = await asyncio.to_thread(
                     self._recognizer_dataset.execute,
                     source_data_path=source_data_path,
                     subset_percent=subset_percent,
@@ -89,7 +95,34 @@ class DatasetJobHandler:
             f"request_id={job.request_id}",
             f"event_type={job.event_type}",
         )
+        result = {
+            "dataset_root": dataset_result.dataset_root,
+            "archive_path": dataset_result.archive_path,
+            "manifest_path": dataset_result.manifest_path,
+            "selected_samples": dataset_result.selected_samples,
+        }
+        lifecycle_id = payload.get("lifecycle_id")
+        if self._workspace_materializer is not None and lifecycle_id is not None:
+            if not isinstance(lifecycle_id, str) or not lifecycle_id.strip():
+                return JobResultDto(
+                    request_id=job.request_id,
+                    success=False,
+                    error_message="lifecycle_id must be a non-empty string when provided",
+                )
+            context = LifecycleContext(
+                lifecycle_id=lifecycle_id,
+                model_type=model_type,
+                dataset_version=dataset_version,
+                raw_data_path=source_data_path,
+                dataset_root=dataset_result.dataset_root,
+                dataset_archive_path=dataset_result.archive_path,
+                dataset_manifest_path=dataset_result.manifest_path,
+            )
+            materialized = await asyncio.to_thread(self._workspace_materializer.materialize, context)
+            result["training_data_path"] = materialized.training_data_path
+
         return JobResultDto(
             request_id=job.request_id,
             success=True,
+            result=result,
         )

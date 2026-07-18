@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 from src.platform.persistence.postgres.kafka_event_schema_guard import (
     ALTER_TIMESTAMP_DEFAULTS_SQL,
     CLAIM_QUEUE_INDEX_SQL,
+    DATASET_VERSION_TABLE_SQL,
     REQUEST_ID_UNIQUE_INDEX_SQL,
     KafkaEventSchemaGuard,
 )
@@ -23,7 +24,8 @@ class KafkaEventSchemaGuardUnitTest(unittest.IsolatedAsyncioTestCase):
         connection.execute.assert_any_await(ALTER_TIMESTAMP_DEFAULTS_SQL)
         connection.execute.assert_any_await(REQUEST_ID_UNIQUE_INDEX_SQL)
         connection.execute.assert_any_await(CLAIM_QUEUE_INDEX_SQL)
-        self.assertEqual(connection.execute.await_count, 3)
+        connection.execute.assert_any_await(DATASET_VERSION_TABLE_SQL)
+        self.assertEqual(connection.execute.await_count, 4)
         logger.info.assert_called()
 
     def test_sql_constants_target_kafka_events(self) -> None:

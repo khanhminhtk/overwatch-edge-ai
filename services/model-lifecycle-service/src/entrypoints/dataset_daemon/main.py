@@ -7,6 +7,7 @@ from typing import Any
 from psycopg import sql
 
 from src.bootstrap import (
+    REPO_ROOT,
     build_success_event_publisher,
     load_job_control_config,
     load_kafka_config,
@@ -23,6 +24,7 @@ from src.modules.dataset.application.use_case import (
     CreateGodDatasetDetection,
     CreateGodDatasetRecognizer,
 )
+from src.modules.lifecycle.application import DatasetWorkspaceMaterializer
 from src.modules.job_control.adapters.outbound.persistence.postgres.postgres_claimed_job_repository import (
     PostgresClaimedJobRepository,
 )
@@ -163,6 +165,9 @@ async def async_main(
         recognizer_dataset=recognizer_dataset,
         detection_event_type=detection_event_type,
         recognizer_event_type=recognizer_event_type,
+        workspace_materializer=DatasetWorkspaceMaterializer(
+            REPO_ROOT / "ml" / "training" / "data"
+        ),
         logger=Logger("DatasetJobHandler"),
     )
 
