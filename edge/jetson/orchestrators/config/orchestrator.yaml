@@ -1,0 +1,9 @@
+log:
+  level: ${LOG_LEVEL:-INFO}
+  format: ${LOG_FORMAT:-text}
+
+inference_runtime:
+  directory: ${INFERENCE_RUNTIME_DIRECTORY}
+  uv_path: ${INFERENCE_RUNTIME_UV_PATH:-uv}
+  module: ${INFERENCE_RUNTIME_MODULE:-src.entrypoints.inference_daemon.main}
+  display: ${INFERENCE_RUNTIME_DISPLAY:-true}
