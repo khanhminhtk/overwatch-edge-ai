@@ -34,7 +34,13 @@ func (p *Producer) Publish(ctx context.Context, message Message) error {
 	if err := message.Validate(); err != nil {
 		return err
 	}
-	native := segment.Message{Topic: message.Topic, Key: message.Key, Value: message.Value, Time: message.Timestamp, Headers: toNativeHeaders(message.Headers)}
+	native := segment.Message{
+		Topic: message.Topic, 
+		Key: message.Key, 
+		Value: message.Value, 
+		Time: message.Timestamp, 
+		Headers: toNativeHeaders(message.Headers),
+	}
 	if err := p.writer.WriteMessages(ctx, native); err != nil {
 		if p.logger != nil {
 			p.logger.Error("[KAFKA_PRODUCER_ERROR]", "topic", message.Topic, "error", err)

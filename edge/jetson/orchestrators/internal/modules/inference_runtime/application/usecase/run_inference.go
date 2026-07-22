@@ -9,8 +9,6 @@ import (
 	"orchestrator/internal/modules/inference_runtime/domain"
 )
 
-// RunInference converts an inbound request to a validated domain invocation
-// and delegates execution to the configured runtime adapter.
 type RunInference struct{ runner ports.RuntimeRunner }
 
 func NewRunInference(runner ports.RuntimeRunner) (RunInference, error) {

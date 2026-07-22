@@ -70,9 +70,21 @@ func (m Message) Metadata() map[string]any {
 	}
 	headers := make([]map[string]any, len(m.Headers))
 	for index, header := range m.Headers {
-		headers[index] = map[string]any{"key": header.Key, "value": encode(header.Value)}
+		headers[index] = map[string]any{
+			"key": header.Key, 
+			"value": encode(header.Value),
+		}
 	}
-	return map[string]any{"topic": m.Topic, "partition": m.Partition, "offset": m.Offset, "key": encode(m.Key), "value": encode(m.Value), "headers": headers, "timestamp": m.Timestamp, "leader_epoch": m.LeaderEpoch}
+	return map[string]any{
+		"topic": m.Topic, 
+		"partition": m.Partition, 
+		"offset": m.Offset, 
+		"key": encode(m.Key), 
+		"value": encode(m.Value), 
+		"headers": headers, 
+		"timestamp": m.Timestamp, 
+		"leader_epoch": m.LeaderEpoch,
+	}
 }
 
 type ProcessingError struct {

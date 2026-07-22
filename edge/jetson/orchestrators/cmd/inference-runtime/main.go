@@ -41,7 +41,13 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
-	settings, err := platformconfig.Load[appConfig](platformconfig.Options{YAMLFiles: []string{filepath.Join(resolvedConfigDir, "orchestrator.yaml")}, EnvFiles: []string{filepath.Join(resolvedConfigDir, ".env")}, IncludeOSEnv: true})
+	settings, err := platformconfig.Load[appConfig](
+		platformconfig.Options{
+			YAMLFiles: []string{
+				filepath.Join(resolvedConfigDir, "orchestrator.yaml")}, 
+			EnvFiles: []string{filepath.Join(resolvedConfigDir, ".env")}, 
+			IncludeOSEnv: true})
+
 	if err != nil {
 		fail(fmt.Errorf("load config: %w", err))
 	}

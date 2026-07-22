@@ -7,3 +7,24 @@ inference_runtime:
   uv_path: ${INFERENCE_RUNTIME_UV_PATH:-uv}
   module: ${INFERENCE_RUNTIME_MODULE:-src.entrypoints.inference_daemon.main}
   display: ${INFERENCE_RUNTIME_DISPLAY:-true}
+
+deploy_model:
+  docker_path: ${DOCKER_PATH:-docker}
+  triton:
+    image: ${TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:23.06-py3}
+    model_repository_path: ${TRITON_MODEL_REPOSITORY_PATH:-/models}
+    ip: ${TRITON_IP:-0.0.0.0}
+    host_port: ${TRITON_HOST_PORT:-8000}
+    model:
+      detector:
+        model_path_raw: ${TRITON_MODEL_DETECTOR_PATH_RAW:-/models/detector}
+        model_path_onnx: ${TRITON_MODEL_DETECTOR_PATH_ONNX:-/models/detector.onnx}
+        model_path_trt: ${TRITON_MODEL_DETECTOR_PATH_TRT:-/models/detector.trt}
+        name: ${TRITON_MODEL_DETECTOR_NAME:-detector}
+        version: ${TRITON_MODEL_DETECTOR_VERSION:-1}
+      recognizer:
+        model_path_raw: ${TRITON_MODEL_RECOGNIZER_PATH_RAW:-/models/recognizer}
+        model_path_onnx: ${TRITON_MODEL_RECOGNIZER_PATH_ONNX:-/models/recognizer.onnx}
+        model_path_trt: ${TRITON_MODEL_RECOGNIZER_PATH_TRT:-/models/recognizer.trt}
+        name: ${TRITON_MODEL_RECOGNIZER_NAME:-recognizer}
+        version: ${TRITON_MODEL_RECOGNIZER_VERSION:-1}
