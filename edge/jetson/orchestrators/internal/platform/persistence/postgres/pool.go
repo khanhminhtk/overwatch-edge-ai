@@ -144,6 +144,17 @@ func (p *Pool) Acquire(ctx context.Context) (acquiredConnection, error) {
 	}
 	return connection, nil
 }
+
+// Exec executes a statement using a pooled connection. It allows Pool to be
+// used directly by schema guards and other lightweight initialization tasks.
+func (p *Pool) Exec(ctx context.Context, query string, args ...any) (pgconn.CommandTag, error) {
+	connection, err := p.Acquire(ctx)
+	if err != nil {
+		return pgconn.CommandTag{}, err
+	}
+	defer connection.Release()
+	return connection.Exec(ctx, query, args...)
+}
 func (p *Pool) info(message string) {
 	if p.logger != nil {
 		p.logger.Info(message)

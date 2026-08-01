@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -20,13 +21,14 @@ type reader interface {
 // Consumer fetches one message at a time and commits only after its handler
 // succeeds. Cancel the Run context or call Stop to end it.
 type Consumer struct {
-	reader  reader
-	handler Handler
-	logger  Logger
-	cancel  context.CancelFunc
-	mutex   sync.Mutex
-	running bool
-	closed  bool
+	reader    reader
+	newReader func() reader
+	handler   Handler
+	logger    Logger
+	cancel    context.CancelFunc
+	mutex     sync.Mutex
+	running   bool
+	closed    bool
 }
 
 func NewConsumer(config Config, groupID string, topics []string, handler Handler, logger Logger) (*Consumer, error) {
@@ -42,8 +44,10 @@ func NewConsumer(config Config, groupID string, topics []string, handler Handler
 	if handler == nil {
 		return nil, fmt.Errorf("Kafka handler must not be nil")
 	}
-	reader := segment.NewReader(segment.ReaderConfig{Brokers: config.Brokers(), GroupID: groupID, GroupTopics: topics, Dialer: &segment.Dialer{ClientID: config.ClientIDPrefix, TLS: config.tlsConfig()}, MinBytes: 1, MaxBytes: 10e6, StartOffset: config.ConsumerConfig.startOffset(), SessionTimeout: time.Duration(config.ConsumerConfig.SessionTimeoutMS) * time.Millisecond, MaxWait: time.Second})
-	return &Consumer{reader: reader, handler: handler, logger: logger}, nil
+	settings := config.ConsumerSettings(nil)
+	readerConfig := segment.ReaderConfig{Brokers: config.Brokers(), GroupID: groupID, GroupTopics: topics, Dialer: &segment.Dialer{ClientID: config.ClientIDPrefix, TLS: config.tlsConfig()}, MinBytes: 1, MaxBytes: 10e6, StartOffset: settings.startOffset(), SessionTimeout: time.Duration(settings.SessionTimeoutMS) * time.Millisecond, MaxWait: time.Second}
+	newReader := func() reader { return segment.NewReader(readerConfig) }
+	return &Consumer{reader: newReader(), newReader: newReader, handler: handler, logger: logger}, nil
 }
 func (c *Consumer) Run(ctx context.Context) error {
 	c.mutex.Lock()
@@ -68,16 +72,83 @@ func (c *Consumer) Run(ctx context.Context) error {
 			if errors.Is(err, context.Canceled) {
 				return nil
 			}
+			if errors.Is(err, io.EOF) && c.newReader != nil {
+				if c.logger != nil {
+					c.logger.Error("[KAFKA_CONSUMER_RECONNECT]", "error", err)
+				}
+				if err := c.reconnect(ctx); err != nil {
+					return err
+				}
+				continue
+			}
 			return fmt.Errorf("fetch Kafka message: %w", err)
 		}
 		message := fromNativeMessage(native)
+		if c.logger != nil {
+			c.logger.Info("[KAFKA_MESSAGE_FETCHED]",
+				"topic", message.Topic,
+				"partition", message.Partition,
+				"offset", message.Offset,
+				"key_size_bytes", len(message.Key),
+				"value_size_bytes", len(message.Value),
+			)
+		}
+		handlerStarted := time.Now()
 		if err := c.handler(ctx, message); err != nil {
+			if c.logger != nil {
+				c.logger.Error("[KAFKA_MESSAGE_HANDLER_FAILED]",
+					"topic", message.Topic,
+					"partition", message.Partition,
+					"offset", message.Offset,
+					"duration_ms", time.Since(handlerStarted).Milliseconds(),
+					"error", err,
+				)
+			}
 			return &ProcessingError{Message: message, Cause: err}
 		}
+		if c.logger != nil {
+			c.logger.Info("[KAFKA_MESSAGE_HANDLER_COMPLETED]",
+				"topic", message.Topic,
+				"partition", message.Partition,
+				"offset", message.Offset,
+				"duration_ms", time.Since(handlerStarted).Milliseconds(),
+			)
+		}
+		commitStarted := time.Now()
 		if err := c.reader.CommitMessages(ctx, native); err != nil {
+			if c.logger != nil {
+				c.logger.Error("[KAFKA_MESSAGE_COMMIT_FAILED]",
+					"topic", message.Topic,
+					"partition", message.Partition,
+					"offset", message.Offset,
+					"duration_ms", time.Since(commitStarted).Milliseconds(),
+					"error", err,
+				)
+			}
 			return fmt.Errorf("commit Kafka message: %w", err)
 		}
+		if c.logger != nil {
+			c.logger.Info("[KAFKA_MESSAGE_COMMITTED]",
+				"topic", message.Topic,
+				"partition", message.Partition,
+				"offset", message.Offset,
+				"duration_ms", time.Since(commitStarted).Milliseconds(),
+			)
+		}
 	}
+}
+
+func (c *Consumer) reconnect(ctx context.Context) error {
+	if err := c.reader.Close(); err != nil {
+		return fmt.Errorf("close Kafka reader before reconnect: %w", err)
+	}
+	select {
+	case <-ctx.Done():
+		return nil
+	case <-time.After(time.Second):
+	}
+	c.reader = c.newReader()
+	return nil
 }
 func (c *Consumer) Stop() {
 	c.mutex.Lock()

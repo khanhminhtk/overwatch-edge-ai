@@ -2,6 +2,10 @@ log:
   level: ${LOG_LEVEL:-INFO}
   format: ${LOG_FORMAT:-text}
 
+job_control:
+  server_id: ${JOB_CONTROL_SERVER_ID:-jetson-local}
+  poll_interval_ms: ${JOB_CONTROL_POLL_INTERVAL_MS:-2000}
+
 inference_runtime:
   directory: ${INFERENCE_RUNTIME_DIRECTORY}
   uv_path: ${INFERENCE_RUNTIME_UV_PATH:-uv}
@@ -12,19 +16,72 @@ deploy_model:
   docker_path: ${DOCKER_PATH:-docker}
   triton:
     image: ${TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:23.06-py3}
-    model_repository_path: ${TRITON_MODEL_REPOSITORY_PATH:-/models}
+    model_repository_path: ${TRITON_MODEL_REPOSITORY_PATH:-edge/jetson/triton}
     ip: ${TRITON_IP:-0.0.0.0}
     host_port: ${TRITON_HOST_PORT:-8000}
     model:
       detector:
-        model_path_raw: ${TRITON_MODEL_DETECTOR_PATH_RAW:-/models/detector}
-        model_path_onnx: ${TRITON_MODEL_DETECTOR_PATH_ONNX:-/models/detector.onnx}
-        model_path_trt: ${TRITON_MODEL_DETECTOR_PATH_TRT:-/models/detector.trt}
+        model_path_raw: ${TRITON_MODEL_DETECTOR_PATH_RAW:-data/checkpoint/yolo/weights/best.pt}
+        model_path_onnx: ${TRITON_MODEL_DETECTOR_PATH_ONNX:-artifacts/onnx/detection.onnx}
+        model_path_trt: ${TRITON_MODEL_DETECTOR_PATH_TRT:-edge/jetson/triton/detector/1/detection.plan}
         name: ${TRITON_MODEL_DETECTOR_NAME:-detector}
         version: ${TRITON_MODEL_DETECTOR_VERSION:-1}
       recognizer:
-        model_path_raw: ${TRITON_MODEL_RECOGNIZER_PATH_RAW:-/models/recognizer}
-        model_path_onnx: ${TRITON_MODEL_RECOGNIZER_PATH_ONNX:-/models/recognizer.onnx}
-        model_path_trt: ${TRITON_MODEL_RECOGNIZER_PATH_TRT:-/models/recognizer.trt}
+        model_path_raw: ${TRITON_MODEL_RECOGNIZER_PATH_RAW:-data/checkpoint_recognizer/best_cer.pt}
+        model_path_onnx: ${TRITON_MODEL_RECOGNIZER_PATH_ONNX:-artifacts/onnx/recognizer.onnx}
+        model_path_trt: ${TRITON_MODEL_RECOGNIZER_PATH_TRT:-edge/jetson/triton/recognizer/1/recognizer.plan}
         name: ${TRITON_MODEL_RECOGNIZER_NAME:-recognizer}
         version: ${TRITON_MODEL_RECOGNIZER_VERSION:-1}
+
+export_tensorrt:
+  triton_docker_env_file: ${EXPORT_TENSORRT_TRITON_DOCKER_ENV_FILE}
+  triton_docker_compose_file: ${EXPORT_TENSORRT_TRITON_DOCKER_COMPOSE_FILE}
+  triton_builder_profile_format: ${EXPORT_TENSORRT_TRITON_BUILDER_PROFILE_FORMAT}
+  triton_builder_service_name_format: ${EXPORT_TENSORRT_TRITON_BUILDER_SERVICE_NAME_FORMAT}
+
+kafka:
+  bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+  security_protocol: ${KAFKA_SECURITY_PROTOCOL:-PLAINTEXT}
+  client_id_prefix: ${KAFKA_CLIENT_ID_PREFIX:-job-control}
+  defaults:
+    consumer:
+      auto_offset_reset: ${kafka_consumer_auto_offset_reset}
+      enable_auto_commit: ${kafka_consumer_enable_auto_commit}
+      session_timeout_ms: ${kafka_consumer_session_timeout_ms}
+      max_poll_interval_ms: ${kafka_consumer_max_poll_interval_ms}
+    producer:
+      acks: ${kafka_producer_acks}
+      enable_idempotence: ${kafka_producer_enable_idempotence}
+      retries: ${kafka_producer_retries}
+      linger_ms: ${kafka_producer_linger_ms}
+      retry_backoff_ms: ${kafka_producer_retry_backoff_ms}
+      compression_type: ${kafka_producer_compression_type}
+
+  jobs:
+    deploy_model:
+      topic: ${kafka_jobs_deploy_model_topic}
+      group_id: ${kafka_jobs_deploy_model_group_id}
+      event_type: deploy_requested
+      consumer:
+        max_poll_interval_ms: ${kafka_jobs_deploy_model_consumer_max_poll_interval_ms}
+
+    export_tensorrt:
+      topic: ${kafka_jobs_export_tensorrt_topic}
+      group_id: ${kafka_jobs_export_tensorrt_group_id}
+      event_type: export_tensorrt_requested
+      consumer:
+        max_poll_interval_ms: ${kafka_jobs_export_tensorrt_consumer_max_poll_interval_ms}
+
+    inference_runtime:
+      topic: ${kafka_jobs_inference_runtime_topic}
+      group_id: ${kafka_jobs_inference_runtime_group_id}
+      event_type: inference_runtime_requested
+
+postgres:
+  host: ${POSTGRES_HOST:-localhost}
+  port: ${POSTGRES_PORT:-5432}
+  database: ${POSTGRES_DB:-overwatch}
+  user: ${POSTGRES_USER:-postgres}
+  password: ${POSTGRES_PASSWORD:-postgres}
+  min_connections: ${POSTGRES_MIN_CONNECTIONS:-1}
+  max_connections: ${POSTGRES_MAX_CONNECTIONS:-10}

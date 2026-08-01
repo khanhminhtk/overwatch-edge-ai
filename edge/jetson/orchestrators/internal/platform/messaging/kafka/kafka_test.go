@@ -26,6 +26,15 @@ func TestJobEventTypes(t *testing.T) {
 		t.Fatalf("unexpected event types: %#v", values)
 	}
 }
+
+func TestConsumerSettingsUsesDefaultsAndJobOverride(t *testing.T) {
+	config := Config{Defaults: DefaultsConfig{Consumer: ConsumerConfig{AutoOffsetReset: "latest", SessionTimeoutMS: 45000, MaxPollIntervalMS: 300000}}}
+	got := config.ConsumerSettings(&ConsumerConfig{MaxPollIntervalMS: 900000})
+	if got.AutoOffsetReset != "latest" || got.SessionTimeoutMS != 45000 || got.MaxPollIntervalMS != 900000 {
+		t.Fatalf("unexpected consumer settings: %#v", got)
+	}
+}
+
 func TestConsumerCommitsOnlyAfterSuccessfulHandler(t *testing.T) {
 	native := segment.Message{Topic: "jobs", Partition: 0, Offset: 1, Value: []byte("v")}
 	reader := &fakeReader{message: native}

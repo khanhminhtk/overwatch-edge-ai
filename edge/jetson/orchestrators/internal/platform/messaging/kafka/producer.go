@@ -27,7 +27,8 @@ func NewProducer(config Config, logger Logger) (*Producer, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	writer := &segment.Writer{Addr: segment.TCP(config.Brokers()...), Balancer: &segment.LeastBytes{}, RequiredAcks: requiredAcks(config.ProducerConfig.Acks), Async: false, BatchTimeout: config.ProducerConfig.batchTimeout(), MaxAttempts: config.ProducerConfig.Retries + 1, Transport: &segment.Transport{ClientID: config.ClientIDPrefix, TLS: config.tlsConfig()}}
+	settings := config.ProducerSettings()
+	writer := &segment.Writer{Addr: segment.TCP(config.Brokers()...), Balancer: &segment.LeastBytes{}, RequiredAcks: requiredAcks(settings.Acks), Async: false, BatchTimeout: settings.batchTimeout(), MaxAttempts: settings.Retries + 1, Transport: &segment.Transport{ClientID: config.ClientIDPrefix, TLS: config.tlsConfig()}}
 	return &Producer{writer: writer, logger: logger}, nil
 }
 func (p *Producer) Publish(ctx context.Context, message Message) error {
@@ -35,10 +36,10 @@ func (p *Producer) Publish(ctx context.Context, message Message) error {
 		return err
 	}
 	native := segment.Message{
-		Topic: message.Topic, 
-		Key: message.Key, 
-		Value: message.Value, 
-		Time: message.Timestamp, 
+		Topic:   message.Topic,
+		Key:     message.Key,
+		Value:   message.Value,
+		Time:    message.Timestamp,
 		Headers: toNativeHeaders(message.Headers),
 	}
 	if err := p.writer.WriteMessages(ctx, native); err != nil {

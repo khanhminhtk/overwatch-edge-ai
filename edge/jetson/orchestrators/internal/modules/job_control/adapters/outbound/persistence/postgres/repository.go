@@ -31,21 +31,25 @@ RETURNING e.request_id, e.event_type, e.payload, e.status`
 const markProcessedSQL = `UPDATE kafka_events SET status = 'PROCESSED', error_message = NULL, processed_at = ` + hcmNowSQL + `, updated_at = ` + hcmNowSQL + ` WHERE request_id = $1 RETURNING id`
 const markFailedSQL = `UPDATE kafka_events SET status = 'FAILED', error_message = $2, processed_at = ` + hcmNowSQL + `, updated_at = ` + hcmNowSQL + ` WHERE request_id = $1 RETURNING id`
 
-// Repository persists the shared kafka_events job ledger. Claiming is atomic
-// and serializes active work per event type, matching the Python lifecycle service.
+
 type Repository struct {
 	transaction           platform.Transaction
 	eventType             string
 	reclaimTimeoutSeconds int
 }
 
-func NewRepository(transaction platform.Transaction, eventType string, reclaimTimeoutSeconds int) (*Repository, error) {
+func NewRepository(
+	transaction platform.Transaction, 
+	eventType string, 
+	reclaimTimeoutSeconds int) (*Repository, error) {
 	if strings.TrimSpace(eventType) == "" {
 		return nil, fmt.Errorf("event type must not be empty")
 	}
+
 	if reclaimTimeoutSeconds <= 0 {
 		reclaimTimeoutSeconds = 1800
 	}
+
 	return &Repository{
 		transaction: transaction, 
 		eventType: eventType, 
@@ -53,11 +57,18 @@ func NewRepository(transaction platform.Transaction, eventType string, reclaimTi
 	}, nil
 }
 
-func (r *Repository) CreateIfNotExists(ctx context.Context, job domain.JobRecord, schemaName, schemaVersion string, messageKey *string) (bool, error) {
+func (r *Repository) CreateIfNotExists(
+	ctx context.Context, 
+	job domain.JobRecord, 
+	schemaName, 
+	schemaVersion string, 
+	messageKey *string,
+	) (bool, error) {
 	payload, err := json.Marshal(job.Payload)
 	if err != nil {
 		return false, fmt.Errorf("marshal job payload: %w", err)
 	}
+
 	created := false
 	err = r.transaction.Run(ctx, func(tx pgx.Tx) error {
 		var id int64
@@ -92,6 +103,7 @@ func (r *Repository) ClaimNextPendingJob(ctx context.Context, serverID string) (
 	if strings.TrimSpace(serverID) == "" {
 		return nil, fmt.Errorf("server ID must not be empty")
 	}
+	
 	var result *dto.ClaimedJob
 	err := r.transaction.Run(ctx, func(tx pgx.Tx) error {
 		var requestID, eventType, status string

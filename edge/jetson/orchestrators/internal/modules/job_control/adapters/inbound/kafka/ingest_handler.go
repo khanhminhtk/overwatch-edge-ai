@@ -13,7 +13,7 @@ import (
 )
 
 type IngestHandler struct {
-	ingest                                   *usecase.IngestJob
+	ingest	*usecase.IngestJob
 	consumerGroup, schemaName, schemaVersion string
 }
 

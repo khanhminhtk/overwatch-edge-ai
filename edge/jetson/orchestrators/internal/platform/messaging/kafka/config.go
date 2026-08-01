@@ -27,6 +27,11 @@ type ProducerConfig struct {
 	CompressionType   string `yaml:"compression_type"`
 }
 
+type DefaultsConfig struct {
+	Consumer ConsumerConfig `yaml:"consumer"`
+	Producer ProducerConfig `yaml:"producer"`
+}
+
 func DefaultProducerConfig() ProducerConfig {
 	return ProducerConfig{Acks: "all", EnableIdempotence: true, Retries: 3, LingerMS: 5, RetryBackoffMS: 1000, CompressionType: "snappy"}
 }
@@ -54,9 +59,45 @@ type Config struct {
 	BootstrapServers string               `yaml:"bootstrap_servers"`
 	SecurityProtocol string               `yaml:"security_protocol"`
 	ClientIDPrefix   string               `yaml:"client_id_prefix"`
+	Defaults         DefaultsConfig       `yaml:"defaults"`
 	ConsumerConfig   ConsumerConfig       `yaml:"consumer_config"`
 	ProducerConfig   ProducerConfig       `yaml:"producer_config"`
 	Jobs             map[string]JobConfig `yaml:"jobs"`
+}
+
+func (c Config) ConsumerSettings(override *ConsumerConfig) ConsumerConfig {
+	settings := c.Defaults.Consumer
+	if settings == (ConsumerConfig{}) {
+		settings = c.ConsumerConfig
+	}
+	if override == nil {
+		return settings
+	}
+	if override.AutoOffsetReset != "" {
+		settings.AutoOffsetReset = override.AutoOffsetReset
+	}
+	if override.EnableAutoCommit {
+		settings.EnableAutoCommit = true
+	}
+	if override.SessionTimeoutMS != 0 {
+		settings.SessionTimeoutMS = override.SessionTimeoutMS
+	}
+	if override.MaxPollIntervalMS != 0 {
+		settings.MaxPollIntervalMS = override.MaxPollIntervalMS
+	}
+	return settings
+}
+
+func (c Config) WithConsumerOverride(override *ConsumerConfig) Config {
+	c.Defaults.Consumer = c.ConsumerSettings(override)
+	return c
+}
+
+func (c Config) ProducerSettings() ProducerConfig {
+	if c.Defaults.Producer != (ProducerConfig{}) {
+		return c.Defaults.Producer
+	}
+	return c.ProducerConfig
 }
 
 func (c Config) Brokers() []string {

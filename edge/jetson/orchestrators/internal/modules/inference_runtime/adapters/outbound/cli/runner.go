@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"orchestrator/internal/modules/inference_runtime/application/dto"
 	"orchestrator/internal/modules/inference_runtime/domain"
 )
 
@@ -100,6 +101,33 @@ func (r *Runner) Run(ctx context.Context, invocation domain.Invocation) error {
 		}
 		return fmt.Errorf("run inference runtime: %w", err)
 	}
+	return nil
+}
+
+// Start launches the inference runtime and returns after the child process is
+// running. It keeps the single-active-run guard used by Run/Restart.
+func (r *Runner) Start(ctx context.Context, request dto.RunRequest) error {
+	invocation, err := domain.NewInvocation(request.Display, request.Arguments)
+	if err != nil {
+		return err
+	}
+	command, run, _, err := r.start(ctx, invocation)
+	if err != nil {
+		return err
+	}
+	if err := command.Start(); err != nil {
+		r.finish(run)
+		return fmt.Errorf("start inference runtime: %w", err)
+	}
+	if r.Logger != nil {
+		r.Logger.Info("[INFERENCE_RUNTIME_STARTED]", "directory", r.RuntimeDir, "pid", command.Process.Pid)
+	}
+	go func() {
+		if err := command.Wait(); err != nil && r.Logger != nil {
+			r.Logger.Info("[INFERENCE_RUNTIME_STOPPED]", "error", err)
+		}
+		r.finish(run)
+	}()
 	return nil
 }
 

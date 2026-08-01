@@ -41,6 +41,7 @@ func NewIngestJob(repository ports.JobRecordRepository, logger Logger, expectedE
 
 	return &IngestJob{repository: repository, logger: logger, expected: expected}, nil
 }
+
 func (u *IngestJob) Execute(ctx context.Context, command dto.ConsumeEventCommand) (bool, error) {
 	if _, ok := u.expected[command.EventType]; !ok {
 		return false, fmt.Errorf("unexpected event type %q", command.EventType)

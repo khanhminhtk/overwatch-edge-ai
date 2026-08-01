@@ -10,11 +10,13 @@ import (
 
 // Config contains the connection settings required by PostgreSQL.
 type Config struct {
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	Database string `yaml:"database"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
+	Host           string `yaml:"host"`
+	Port           int    `yaml:"port"`
+	Database       string `yaml:"database"`
+	User           string `yaml:"user"`
+	Password       string `yaml:"password"`
+	MinConnections int32  `yaml:"min_connections"`
+	MaxConnections int32  `yaml:"max_connections"`
 }
 
 // Validate rejects incomplete or invalid connection settings before a network
@@ -34,6 +36,9 @@ func (c Config) Validate() error {
 	}
 	if strings.TrimSpace(c.Password) == "" {
 		return fmt.Errorf("Postgres password must not be empty")
+	}
+	if err := (PoolOptions{MinConns: c.MinConnections, MaxConns: c.MaxConnections}).withDefaults().validate(); err != nil {
+		return fmt.Errorf("Postgres pool configuration: %w", err)
 	}
 	return nil
 }

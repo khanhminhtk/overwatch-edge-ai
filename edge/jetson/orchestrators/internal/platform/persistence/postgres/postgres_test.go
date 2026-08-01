@@ -22,6 +22,12 @@ func TestConfigValidationAndEscapedDSN(t *testing.T) {
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected validation error")
 	}
+	cfg.Port = 5432
+	cfg.MinConnections = 2
+	cfg.MaxConnections = 1
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected invalid pool configuration")
+	}
 }
 func TestPoolOptionsValidation(t *testing.T) {
 	if _, err := NewPool("postgres://example", nil, PoolOptions{MinConns: 2, MaxConns: 1}); err == nil {
