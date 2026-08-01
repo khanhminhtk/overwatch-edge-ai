@@ -5,6 +5,8 @@ if [[ $# -gt 0 ]]; then
   exec "$@"
 fi
 
+
+
 MODEL_KIND="${TRITON_MODEL_KIND:-detector}"
 MODEL_VERSION="${TRITON_MODEL_VERSION:-1}"
 WEIGHTS_PATH="${TRITON_WEIGHTS_PATH:-/workspace/data/checkpoint/yolo/weights/best.pt}"
@@ -19,14 +21,17 @@ PRECISION_FLAG="${TRITON_PRECISION_FLAG:---fp16}"
 TRTEXEC_BIN="${TRTEXEC_BIN:-}"
 EXTRA_FLAGS="${TRITON_TRTEXEC_EXTRA_FLAGS:---memPoolSize=workspace:2048}"
 
-if [[ -z "${TRTEXEC_BIN}" ]]; then
-  if command -v trtexec >/dev/null 2>&1; then
-    TRTEXEC_BIN="$(command -v trtexec)"
-  elif [[ -x /usr/src/tensorrt/bin/trtexec ]]; then
-    TRTEXEC_BIN="/usr/src/tensorrt/bin/trtexec"
-  else
-    echo "[error] trtexec not found in PATH or /usr/src/tensorrt/bin/trtexec" >&2
-    exit 1
+
+if [[ "${TRITON_ENV:-prod}" != "dev" ]]; then
+  if [[ -z "${TRTEXEC_BIN}" ]]; then
+    if command -v trtexec >/dev/null 2>&1; then
+      TRTEXEC_BIN="$(command -v trtexec)"
+    elif [[ -x /usr/src/tensorrt/bin/trtexec ]]; then
+      TRTEXEC_BIN="/usr/src/tensorrt/bin/trtexec"
+    else
+      echo "[error] trtexec not found in PATH or /usr/src/tensorrt/bin/trtexec" >&2
+      exit 1
+    fi
   fi
 fi
 
@@ -51,8 +56,6 @@ echo "[info] opt shapes: ${OPT_SHAPES}"
 echo "[info] max shapes: ${MAX_SHAPES}"
 echo "[info] precision flag: ${PRECISION_FLAG}"
 echo "[info] extra flags: ${EXTRA_FLAGS}"
-echo "[info] trtexec: ${TRTEXEC_BIN}"
-
 bash /workspace/ml/training/scripts/export_yolo_onnx_cpu.sh \
   --mode prod \
   --project-root /workspace \
@@ -66,17 +69,21 @@ if [[ ! -f "${ONNX_PATH}" ]]; then
   exit 1
 fi
 
-# shellcheck disable=SC2206
-extra_args=(${EXTRA_FLAGS})
+if [[ "${TRITON_ENV:-prod}" != "dev" ]]; then
+  echo "[info] trtexec: ${TRTEXEC_BIN}"
 
-"${TRTEXEC_BIN}" \
-  --onnx="${ONNX_PATH}" \
-  --saveEngine="${PLAN_PATH}" \
-  --minShapes="${MIN_SHAPES}" \
-  --optShapes="${OPT_SHAPES}" \
-  --maxShapes="${MAX_SHAPES}" \
-  "${PRECISION_FLAG}" \
-  "${extra_args[@]}"
+  # shellcheck disable=SC2206
+  extra_args=(${EXTRA_FLAGS})
 
-echo "[info] Engine build finished"
-sha256sum "${PLAN_PATH}"
+  "${TRTEXEC_BIN}" \
+    --onnx="${ONNX_PATH}" \
+    --saveEngine="${PLAN_PATH}" \
+    --minShapes="${MIN_SHAPES}" \
+    --optShapes="${OPT_SHAPES}" \
+    --maxShapes="${MAX_SHAPES}" \
+    "${PRECISION_FLAG}" \
+    "${extra_args[@]}"
+
+  echo "[info] Engine build finished"
+  sha256sum "${PLAN_PATH}"
+fi

@@ -3,7 +3,7 @@ services:
     profiles: ["recognizer-builder"]
     build:
       context: ../../..
-      dockerfile: deploy/docker/triton-builder/Dockerfile
+      dockerfile: deploy/docker/triton_recognizer_builder/Dockerfile
       args:
         TRITON_IMAGE: ${TRITON_RECOGNIZER_BUILDER_IMAGE:-${TRITON_BUILDER_IMAGE:-${TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:24.07-py3-igpu}}}
     image: ${TRITON_RECOGNIZER_BUILDER_LOCAL_IMAGE:-overwatch-triton-recognizer-builder:local}
@@ -13,12 +13,18 @@ services:
       - ../../../config/.env
 
     environment:
+      # Set dev to validate inputs only; prod invokes trtexec and writes the plan.
+      TRITON_ENV: ${TRITON_ENV:-prod}
       NVIDIA_VISIBLE_DEVICES: ${TRITON_GPU_COUNT:-all}
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
       TRITON_MODEL_KIND: recognizer
       TRITON_MODEL_VERSION: ${TRITON_RECOGNIZER_MODEL_VERSION:-${TRITON_MODEL_VERSION:-1}}
-      TRITON_ONNX_PATH: /workspace/artifacts/onnx/recognizer.onnx
-      TRITON_PLAN_PATH: /workspace/edge/jetson/triton/recognizer/${TRITON_RECOGNIZER_MODEL_VERSION:-${TRITON_MODEL_VERSION:-1}}/recognizer.plan
+      TRITON_WEIGHTS_PATH: /workspace/${TRITON_RECOGNIZER_WEIGHTS_PATH:-data/checkpoint_recognizer/best_cer.pt}
+      TRITON_MODEL_ENV_PATH: /workspace/ml/training/config/.env.example
+      TRITON_RECOGNIZER_CONFIG_PATH: /workspace/ml/training/config/training/recognizer_ctc.yaml
+      TRITON_RECOGNIZER_EXPORTER: legacy
+      TRITON_ONNX_PATH: /workspace/${ONNX_EXPORT_DIR:-artifacts/onnx}/${TRITON_RECOGNIZER_ONNX_FILE:-recognizer.onnx}
+      TRITON_PLAN_PATH: /workspace/edge/jetson/triton/recognizer/${TRITON_RECOGNIZER_MODEL_VERSION:-${TRITON_MODEL_VERSION:-1}}/${TRITON_RECOGNIZER_PLAN_FILE:-recognizer.plan}
       TRITON_MIN_SHAPES: images:1x16x3x64x64
       TRITON_OPT_SHAPES: images:4x16x3x64x64
       TRITON_MAX_SHAPES: images:8x16x3x64x64
@@ -36,7 +42,8 @@ services:
       - ../../../ml/training/scripts:/workspace/ml/training/scripts:ro
       - ../../../ml/training/src:/workspace/ml/training/src:ro
 
-    runtime: nvidia
+    # Leave unset for development; set TRITON_BUILDER_RUNTIME=nvidia for GPU plan builds.
+    runtime: ${TRITON_BUILDER_RUNTIME:-}
     working_dir: /workspace
     stdin_open: true
     tty: true
@@ -46,7 +53,7 @@ services:
 
     build:
       context: ../../..
-      dockerfile: deploy/docker/triton-detection-builder/Dockerfile
+      dockerfile: deploy/docker/triton_detector_builder/Dockerfile
       args:
         TRITON_IMAGE: ${TRITON_DETECTOR_BUILDER_IMAGE:-${TRITON_BUILDER_IMAGE:-${TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:24.07-py3-igpu}}}
         TRITON_MODEL_VERSION: ${TRITON_DETECTOR_MODEL_VERSION:-${TRITON_MODEL_VERSION:-1}}
@@ -58,12 +65,15 @@ services:
       - ../../../config/.env
 
     environment:
+      # Set dev to validate inputs only; prod invokes trtexec and writes the plan.
+      TRITON_ENV: ${TRITON_ENV:-prod}
       NVIDIA_VISIBLE_DEVICES: ${TRITON_GPU_COUNT:-all}
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
       TRITON_MODEL_KIND: detector
       TRITON_MODEL_VERSION: ${TRITON_DETECTOR_MODEL_VERSION:-${TRITON_MODEL_VERSION:-1}}
-      TRITON_ONNX_PATH: /workspace/artifacts/onnx/detection.onnx
-      TRITON_PLAN_PATH: /workspace/edge/jetson/triton/detector/${TRITON_DETECTOR_MODEL_VERSION:-${TRITON_MODEL_VERSION:-1}}/detection.plan
+      TRITON_WEIGHTS_PATH: /workspace/${TRITON_DETECTOR_WEIGHTS_PATH:-data/checkpoint/yolo/weights/best.pt}
+      TRITON_ONNX_PATH: /workspace/${ONNX_EXPORT_DIR:-artifacts/onnx}/${TRITON_DETECTOR_ONNX_FILE:-detection.onnx}
+      TRITON_PLAN_PATH: /workspace/edge/jetson/triton/detector/${TRITON_DETECTOR_MODEL_VERSION:-${TRITON_MODEL_VERSION:-1}}/${TRITON_DETECTOR_PLAN_FILE:-detection.plan}
 
     volumes:
       - ../../../pyproject.toml:/workspace/pyproject.toml:ro
@@ -76,13 +86,14 @@ services:
       - ../../../ml/training/scripts:/workspace/ml/training/scripts:ro
       - ../../../ml/training/src:/workspace/ml/training/src:ro
 
-    runtime: nvidia
+    # Leave unset for development; set TRITON_BUILDER_RUNTIME=nvidia for GPU plan builds.
+    runtime: ${TRITON_BUILDER_RUNTIME:-}
     working_dir: /workspace
     stdin_open: true
     tty: true
 
   triton:
-    image: ${TRITON_SERVER_IMAGE:-${TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:24.07-py3-igpu}}
+    image: ${TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:24.07-py3-igpu}
     container_name: ${TRITON_CONTAINER_NAME:-triton_overwatch}
     restart: ${TRITON_RESTART:-unless-stopped}
 
@@ -98,6 +109,8 @@ services:
       - --allow-http=true
       - --allow-grpc=true
       - --allow-metrics=true
+      - --model-control-mode=explicit
+      - --load-model='*'
       - --log-verbose=${TRITON_LOG_VERBOSE:-0}
 
     ports:

@@ -1,0 +1,44 @@
+services:
+  triton:
+    image: ${TRITON_IMAGE:-nvcr.io/nvidia/tritonserver:24.07-py3}
+    container_name: ${TRITON_CONTAINER_NAME:-triton_overwatch}
+    restart: ${TRITON_RESTART:-unless-stopped}
+
+    env_file:
+      - ../../../config/.env
+
+    command:
+      - tritonserver
+      - --model-repository=/models
+      - --http-port=8000
+      - --grpc-port=8001
+      - --metrics-port=8002
+      - --allow-http=true
+      - --allow-grpc=true
+      - --allow-metrics=true
+      - --model-control-mode=explicit
+      - --load-model=detector
+      - --load-model=recognizer
+      - --log-verbose=${TRITON_LOG_VERBOSE:-0}
+
+    ports:
+      - "${TRITON_HTTP_PORT:-8000}:8000"
+      - "${TRITON_GRPC_PORT:-8001}:8001"
+      - "${TRITON_METRICS_PORT:-8002}:8002"
+
+    volumes:
+      - ../../../edge/jetson/triton/detector:/models/detector:ro
+      - ../../../edge/jetson/triton/recognizer:/models/recognizer:ro
+
+    shm_size: ${TRITON_SHM_SIZE:-1g}
+
+    ulimits:
+      memlock: -1
+      stack: 67108864
+
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/v2/health/ready', timeout=3)\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

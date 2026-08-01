@@ -9,7 +9,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     UV_CACHE_DIR=/root/.cache/uv
 
 COPY pyproject.toml uv.lock /workspace/
-COPY deploy/docker/triton-detection-builder/build_detector_plan.sh /usr/local/bin/build_detector_plan.sh
+COPY deploy/docker/triton_detector_builder/build_detector_plan.sh /usr/local/bin/build_detector_plan.sh
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/uv \

@@ -2,17 +2,23 @@ services:
   minio:
     image: ${MINIO_IMAGE:-minio/minio:RELEASE.2026-04-18T22-17-17Z}
     restart: unless-stopped
+
     volumes:
       - minio_data:/data
+
     env_file:
-      - config/.env
+      - ../../../config/.env
+
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-supersecretpassword}
+
     ports:
       - "${MINIO_API_DOCKER_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_DOCKER_PORT:-9001}:9001"
+
     command: server /data --console-address ":9001"
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
       interval: 10s
@@ -20,28 +26,84 @@ services:
       retries: 5
       start_period: 10s
 
+    networks:
+      - overwatch_edge_ai
+
+  minio-init:
+    image: minio/mc:latest
+    restart: "no"
+
+    depends_on:
+      minio:
+        condition: service_healthy
+
+    env_file:
+      - ../../../config/.env
+
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-supersecretpassword}
+      MLFLOW_ARTIFACT_BUCKET: ${MLFLOW_ARTIFACT_BUCKET:-mlflow}
+
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+
+        mc alias set local \
+          http://minio:9000 \
+          "$${MINIO_ROOT_USER}" \
+          "$${MINIO_ROOT_PASSWORD}"
+
+        mc mb \
+          --ignore-existing \
+          "local/$${MLFLOW_ARTIFACT_BUCKET}"
+
+        mc ls local
+
+    networks:
+      - overwatch_edge_ai
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+
     env_file:
-      - ./config/.env
+      - ../../../config/.env
+
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-overwatch}
       PGDATA: /var/lib/postgresql/data/pgdata
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ../../../postgres/init:/docker-entrypoint-initdb.d:ro
+
     ports:
       - "${POSTGRES_DOCKER_PORT:-5432}:5432"
+
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-overwatch}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
 
+    networks:
+      - overwatch_edge_ai
+
 volumes:
   minio_data:
   postgres_data:
+
+networks:
+  overwatch_edge_ai:
+    external: true
+    name: overwatch_edge_ai

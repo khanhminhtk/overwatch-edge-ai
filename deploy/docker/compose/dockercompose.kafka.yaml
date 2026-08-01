@@ -1,10 +1,11 @@
 services:
   kafka:
     image: ${KAFKA_IMAGE:-bitnamilegacy/kafka:3.8.0}
+    hostname: kafka
     restart: ${KAFKA_RESTART:-unless-stopped}
     user: "${KAFKA_USER:-0:0}"
     env_file:
-      - ./config/.env
+      - ../../../config/.env
     ports:
       - "${KAFKA_EXTERNAL_PORT:-9092}:9092"
     volumes:
