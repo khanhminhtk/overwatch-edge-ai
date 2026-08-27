@@ -66,7 +66,7 @@ class ExportJobHandlerUnitTest(unittest.IsolatedAsyncioTestCase):
         spec = self.detection_export.execute.call_args.args[0]
         self.assertEqual(spec.model_type, "detection")
         self.assertEqual(spec.checkpoint_path, Path("/tmp/export-job-handler-test/artifacts/detection/best-custom.pt"))
-        self.assertEqual(spec.output_path, Path("/tmp/export-job-handler-test/data/onnx/detection.onnx"))
+        self.assertEqual(spec.output_path, Path("/tmp/export-job-handler-test/artifacts/onnx/detection.onnx"))
         self.assertEqual(spec.training_config_path, Path("/tmp/export-job-handler-test/ml/training/config/detect.yaml"))
         self.assertEqual(spec.training_env_path, Path("/tmp/export-job-handler-test/ml/training/.env"))
         self.recognizer_export.execute.assert_not_called()

@@ -40,10 +40,16 @@ dependencies = [
     "networkx==3.4.2",
     "sympy==1.14.0",
     "packaging==26.2",
+    "asyncpg>=0.31.0",
 ]
+
+[tool.setuptools.packages.find]
+where = ["services/model-lifecycle-service"]
+namespaces = true
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
+    "pytest-asyncio>=1.4.0",
     "ruff>=0.15.12",
 ]

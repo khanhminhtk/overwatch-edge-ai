@@ -110,7 +110,8 @@ services:
       - --allow-grpc=true
       - --allow-metrics=true
       - --model-control-mode=explicit
-      - --load-model='*'
+      - --load-model=detector
+      - --load-model=recognizer
       - --log-verbose=${TRITON_LOG_VERBOSE:-0}
 
     ports:

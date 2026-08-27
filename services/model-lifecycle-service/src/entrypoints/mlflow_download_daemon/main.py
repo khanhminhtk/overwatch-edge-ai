@@ -173,6 +173,8 @@ async def async_main(
         recognizer_event_type=recognizer_event_type,
         detection_default_checkpoint_name=detection_config.best_checkpoint_name,
         recognizer_default_checkpoint_name=recognizer_config.best_checkpoint_name,
+        detection_checkpoint_dir=detection_config.checkpoint_dir,
+        recognizer_checkpoint_dir=recognizer_config.checkpoint_dir,
         pwd=str(REPO_ROOT),
         download_timeout_seconds=download_timeout_seconds,
         logger=Logger("DownloadJobHandler"),

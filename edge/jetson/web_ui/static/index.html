@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Edge Inference Stream</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Local stream-only UI</p>
+          <h1>Edge Inference Live View</h1>
+        </div>
+        <div class="status-card">
+          <span class="status-dot" id="status-dot"></span>
+          <div>
+            <p class="status-label">Connection</p>
+            <p class="status-value" id="connection-status">Connecting</p>
+          </div>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="frame-panel">
+          <div class="frame-panel__meta">
+            <div>
+              <p class="meta-label">Frame ID</p>
+              <p class="meta-value" id="frame-id">Waiting for stream</p>
+            </div>
+            <div>
+              <p class="meta-label">Timestamp</p>
+              <p class="meta-value" id="frame-timestamp">-</p>
+            </div>
+          </div>
+
+          <div class="frame-stage">
+            <img id="frame-image" alt="Latest inference frame">
+            <canvas id="frame-overlay"></canvas>
+            <div class="frame-empty" id="frame-empty">
+              <p>No frames received yet.</p>
+            </div>
+          </div>
+        </section>
+
+        <aside class="sidebar">
+          <section class="summary-card">
+            <div class="summary-card__header">
+              <div>
+                <p class="meta-label">Detections</p>
+                <h2 id="detection-count">0 active</h2>
+              </div>
+              <p class="summary-pill" id="stream-state">Awaiting feed</p>
+            </div>
+            <ul class="detection-list" id="detection-list">
+              <li class="detection-list__empty">No detections yet.</li>
+            </ul>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

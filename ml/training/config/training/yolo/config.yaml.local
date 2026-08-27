@@ -53,7 +53,7 @@ augmentation:
   copy_paste: 0.0
 
 save:
-  project: /content/drive/MyDrive/checkpoint
+  project: data/checkpoint
   run_name: yolo
   exist_ok: false
   save: true

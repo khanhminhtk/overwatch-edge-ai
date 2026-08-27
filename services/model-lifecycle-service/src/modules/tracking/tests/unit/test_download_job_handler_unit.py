@@ -147,6 +147,40 @@ class DownloadJobHandlerUnitTest(unittest.IsolatedAsyncioTestCase):
             self.assertIn("payload.output_path", result.error_message or "")
             recognizer_download.download_champion_to_file.assert_not_called()
 
+    async def test_handle_defaults_download_to_configured_checkpoint_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            detection_download = Mock()
+            handler = DownloadJobHandler(
+                detection_download=detection_download,
+                recognizer_download=Mock(),
+                detection_event_type="yolo_detector",
+                recognizer_event_type="vit_ctc_deepseek",
+                detection_default_checkpoint_name="best.pt",
+                recognizer_default_checkpoint_name="best_cer.pt",
+                detection_checkpoint_dir="data/checkpoint/yolo/yolo_finetune/weights",
+                recognizer_checkpoint_dir="data/checkpoint_recognizer",
+                pwd=tmpdir,
+            )
+
+            with patch(
+                "src.modules.tracking.adapters.inbound.job_control.download_job_handler.asyncio.to_thread",
+                new=AsyncMock(side_effect=lambda fn, *args: fn(*args)),
+            ):
+                result = await handler.handle(
+                    ClaimedJobDto(
+                        request_id="req-default-output",
+                        event_type="yolo_detector",
+                        payload={},
+                        status="PROCESSING",
+                    )
+                )
+
+            self.assertTrue(result.success)
+            detection_download.download_champion_to_file.assert_called_once_with(
+                "checkpoints/best.pt",
+                f"{tmpdir}/data/checkpoint/yolo/yolo_finetune/weights/best.pt",
+            )
+
     async def test_handle_uses_output_path_from_payload(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             detection_download = Mock()

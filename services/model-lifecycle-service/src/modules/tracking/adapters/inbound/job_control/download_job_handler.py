@@ -24,6 +24,7 @@ class ModelDownloadUseCase(Protocol):
 @dataclass(frozen=True, slots=True)
 class _DownloadTarget:
     default_checkpoint_name: str
+    checkpoint_dir: str
     use_case: ModelDownloadUseCase
 
 
@@ -38,6 +39,8 @@ class DownloadJobHandler:
         detection_default_checkpoint_name: str,
         recognizer_default_checkpoint_name: str,
         pwd: str,
+        detection_checkpoint_dir: str = "",
+        recognizer_checkpoint_dir: str = "",
         download_timeout_seconds: float = 120.0,
         logger: Logger | None = None,
     ) -> None:
@@ -47,10 +50,12 @@ class DownloadJobHandler:
         self._targets = {
             detection_event_type: _DownloadTarget(
                 default_checkpoint_name=detection_default_checkpoint_name,
+                checkpoint_dir=detection_checkpoint_dir,
                 use_case=detection_download,
             ),
             recognizer_event_type: _DownloadTarget(
                 default_checkpoint_name=recognizer_default_checkpoint_name,
+                checkpoint_dir=recognizer_checkpoint_dir,
                 use_case=recognizer_download,
             ),
         }
@@ -74,7 +79,11 @@ class DownloadJobHandler:
 
         artifact_path = f"checkpoints/{checkpoint_name}"
         try:
-            output_path = self._resolve_output_path(payload=payload)
+            output_path = self._resolve_output_path(
+                payload=payload,
+                target=target,
+                checkpoint_name=checkpoint_name,
+            )
         except ValueError as exc:
             self._logger.error(
                 "[DOWNLOAD_JOB_INVALID_PAYLOAD]",
@@ -168,8 +177,12 @@ class DownloadJobHandler:
         self,
         *,
         payload: dict[str, object],
+        target: _DownloadTarget,
+        checkpoint_name: str,
     ) -> Path:
         output_path_value = payload.get("output_path")
         if isinstance(output_path_value, str) and output_path_value.strip():
             return self._resolve_path(Path(output_path_value.strip()))
+        if target.checkpoint_dir:
+            return self._resolve_path(Path(target.checkpoint_dir) / checkpoint_name)
         raise ValueError("Missing required payload.output_path for download job")

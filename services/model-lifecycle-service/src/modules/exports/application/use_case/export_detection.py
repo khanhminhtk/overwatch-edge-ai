@@ -5,7 +5,8 @@ import sys
 import time
 from pathlib import Path
 
-SERVICE_ROOT = Path(__file__).resolve().parents[6]
+REPO_ROOT = Path(__file__).resolve().parents[7]
+SERVICE_ROOT = REPO_ROOT / "services" / "model-lifecycle-service"
 service_root = str(SERVICE_ROOT)
 if service_root not in sys.path:
     sys.path.insert(0, service_root)
@@ -28,7 +29,9 @@ class ExportDetectionUseCase:
     @log_exceptions("[EXPORT_DETECTION_ERROR]")
     def execute(self, spec: ExportSpec) -> ExportResult:
         started_at = time.perf_counter()
-        project_root = spec.project_root or Path.cwd()
+        # Daemons may run from any working directory; use the repository root
+        # to prevent paths such as services/.../ml/training from being nested.
+        project_root = (spec.project_root or REPO_ROOT).resolve()
         training_root = project_root / "ml/training"
 
         training_config_path = str(
@@ -69,6 +72,7 @@ print(f'Detection ONNX exported: {{output_path}}')
             capture_output=True,
             text=True,
             timeout=600,
+            cwd=project_root,
         )
         if result.returncode != 0:
             raise RuntimeError(

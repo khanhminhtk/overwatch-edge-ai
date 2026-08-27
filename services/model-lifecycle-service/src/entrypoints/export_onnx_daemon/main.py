@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import socket
 
 from src.bootstrap import (
@@ -151,6 +152,7 @@ async def async_main(
         detection_event_type=detection_event_type,
         recognizer_event_type=recognizer_event_type,
         project_root=REPO_ROOT,
+        onnx_export_dir=os.environ.get("ONNX_EXPORT_DIR", "artifacts/onnx"),
         logger=Logger("ExportJobHandler"),
     )
 

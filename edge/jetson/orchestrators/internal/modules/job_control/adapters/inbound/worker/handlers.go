@@ -14,6 +14,7 @@ import (
 	inferencecli "orchestrator/internal/modules/inference_runtime/adapters/outbound/cli"
 	inferencedto "orchestrator/internal/modules/inference_runtime/application/dto"
 	jobdto "orchestrator/internal/modules/job_control/application/dto"
+	mlflowdownload "orchestrator/internal/modules/mlflow_download/application"
 )
 
 // HandlerFunc adapts a function to the job-control JobHandler port.
@@ -21,6 +22,31 @@ type HandlerFunc func(context.Context, jobdto.ClaimedJob) jobdto.JobResult
 
 func (f HandlerFunc) Handle(ctx context.Context, job jobdto.ClaimedJob) jobdto.JobResult {
 	return f(ctx, job)
+}
+
+func NewMLflowDownloadHandler(downloader *mlflowdownload.Downloader) HandlerFunc {
+	return func(ctx context.Context, job jobdto.ClaimedJob) jobdto.JobResult {
+		if downloader == nil {
+			return failed(job, fmt.Errorf("MLflow downloader is not configured"))
+		}
+		modelName, _ := job.Payload["model_name"].(string)
+		if strings.TrimSpace(modelName) == "" {
+			switch job.Payload["model_type"] {
+			case "detection":
+				modelName = "yolo_detector"
+			case "recognizer":
+				modelName = "vit_ctc_deepseek"
+			default:
+				return failed(job, fmt.Errorf("job payload requires model_name or supported model_type"))
+			}
+		}
+		version, _ := job.Payload["model_version"].(string)
+		result, err := downloader.Download(ctx, modelName, version)
+		if err != nil {
+			return failed(job, err)
+		}
+		return succeeded(job, map[string]any{"model_name": modelName, "model_version": result.ModelVersion, "model_path": result.OutputPath})
+	}
 }
 
 func NewDeployHandler(runner deployports.DeploymentRunner, triton deploydomain.TritonConfig) HandlerFunc {

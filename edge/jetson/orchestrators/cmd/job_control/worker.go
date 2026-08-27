@@ -14,6 +14,7 @@ import (
 	"orchestrator/internal/modules/job_control/adapters/outbound/scheduler"
 	jobports "orchestrator/internal/modules/job_control/application/ports"
 	"orchestrator/internal/modules/job_control/application/usecase"
+	mlflowdownload "orchestrator/internal/modules/mlflow_download/application"
 	platformlog "orchestrator/internal/platform/log"
 	postgresplatform "orchestrator/internal/platform/persistence/postgres"
 )
@@ -22,6 +23,7 @@ const (
 	deployEventType    = "deploy_requested"
 	exportEventType    = "export_tensorrt_requested"
 	inferenceEventType = "inference_runtime_requested"
+	downloadEventType  = "mlflow_download_requested"
 )
 
 func newPollingRunners(configDir string, settings appConfig, transaction postgresplatform.Transaction, logger *platformlog.Logger) ([]*scheduler.PollingRunner, error) {
@@ -48,6 +50,10 @@ func newPollingRunners(configDir string, settings appConfig, transaction postgre
 	if err != nil {
 		return nil, fmt.Errorf("create TensorRT export worker: %w", err)
 	}
+	downloader, err := mlflowdownload.New(mlflowdownload.Config{TrackingURI: settings.MLflowDownload.TrackingURI, StagingDirectory: settings.MLflowDownload.StagingDirectory, DefaultArtifactPath: settings.MLflowDownload.DefaultArtifactPath})
+	if err != nil {
+		return nil, fmt.Errorf("create MLflow download worker: %w", err)
+	}
 	repositoryRoot, err := filepath.Abs(filepath.Join(configDir, "..", "..", "..", ".."))
 	if err != nil {
 		return nil, fmt.Errorf("resolve repository root: %w", err)
@@ -61,6 +67,7 @@ func newPollingRunners(configDir string, settings appConfig, transaction postgre
 		{eventType: deployEventType, handler: jobworker.NewDeployHandler(deploy, settings.DeployModel.Triton)},
 		{eventType: exportEventType, handler: jobworker.NewExportTensorRTHandler(export, repositoryRoot)},
 		{eventType: inferenceEventType, handler: jobworker.NewInferenceRuntimeHandler(runtime)},
+		{eventType: downloadEventType, handler: jobworker.NewMLflowDownloadHandler(downloader)},
 	}
 	workers := make([]*scheduler.PollingRunner, 0, len(definitions))
 	for _, definition := range definitions {

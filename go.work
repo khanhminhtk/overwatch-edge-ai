@@ -1,5 +1,7 @@
 go 1.25.0
 
 use (
+	./edge/jetson/orchestrators
+	./services/orchestrators_full_pipeline
 	./services/object-storage-service
 )

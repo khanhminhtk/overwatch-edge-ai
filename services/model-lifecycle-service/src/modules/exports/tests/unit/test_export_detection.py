@@ -62,6 +62,7 @@ class ExportDetectionUseCaseUnitTest(unittest.TestCase):
         self.assertIn("python", args[0])
         self.assertIn("-c", args[0])
         self.assertEqual(kwargs["timeout"], 600)
+        self.assertEqual(kwargs["cwd"], Path("/project").resolve())
 
     @patch(
         "src.modules.exports.application.use_case.export_detection.subprocess.run",

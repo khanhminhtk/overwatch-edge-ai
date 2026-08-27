@@ -1,0 +1,1 @@
+docker exec -i compose-postgres-1 psql -U postgres -d postgres < ./postgres/sql/handler_kafka_schema.sql

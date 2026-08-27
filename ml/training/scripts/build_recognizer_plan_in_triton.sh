@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="${PWD}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 ENV_FILE="config/.env"
 MODEL_ENV_FILE="ml/training/config/.env.example"
 COMPOSE_FILE="deploy/docker/compose/dockercompose.triton.yaml"

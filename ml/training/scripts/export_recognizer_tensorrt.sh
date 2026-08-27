@@ -2,7 +2,8 @@
 set -euo pipefail
 
 MODE="local"
-PROJECT_ROOT="${PWD}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 ENV_PATH="config/.env"
 CONFIG_PATH="ml/training/config/training/recognizer_ctc.yaml"
 CHECKPOINT_PATH=""

@@ -12,6 +12,11 @@ inference_runtime:
   module: ${INFERENCE_RUNTIME_MODULE:-src.entrypoints.inference_daemon.main}
   display: ${INFERENCE_RUNTIME_DISPLAY:-true}
 
+mlflow_download:
+  tracking_uri: ${MLFLOW_TRACKING_URI:-http://localhost:5000}
+  staging_directory: ${MLFLOW_STAGING_DIRECTORY:-data/mlflow-staging}
+  default_artifact_path: ${MLFLOW_DEFAULT_ARTIFACT_PATH:-checkpoints/best.pt}
+
 deploy_model:
   docker_path: ${DOCKER_PATH:-docker}
   triton:
@@ -58,6 +63,10 @@ kafka:
       compression_type: ${kafka_producer_compression_type}
 
   jobs:
+    mlflow_download:
+      topic: ${kafka_jobs_mlflow_download_topic:-edge.model.download.jobs}
+      group_id: ${kafka_jobs_mlflow_download_group_id:-edge-mlflow-download}
+      event_type: mlflow_download_requested
     deploy_model:
       topic: ${kafka_jobs_deploy_model_topic}
       group_id: ${kafka_jobs_deploy_model_group_id}

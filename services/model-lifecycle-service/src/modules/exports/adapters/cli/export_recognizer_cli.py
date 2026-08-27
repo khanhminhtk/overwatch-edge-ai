@@ -49,8 +49,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=str,
-        default="data/onnx/recognizer.onnx",
-        help="Output ONNX path (default: data/onnx/recognizer.onnx)",
+        default="artifacts/onnx/recognizer.onnx",
+        help="Output ONNX path (default: artifacts/onnx/recognizer.onnx)",
     )
     parser.add_argument(
         "--exporter",

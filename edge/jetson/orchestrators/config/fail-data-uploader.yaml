@@ -1,0 +1,14 @@
+# Independent service for batching inference-runtime/data/fail frames.
+edge_id: jetson-local
+model_type: detection
+fail_directory: ../inference-runtime/data/fail
+archive_directory: data/fail-archives
+bucket: datasets
+object_prefix: edge-fail
+threshold: 100
+scan_interval_seconds: 10
+object_storage_grpc_target: localhost:50001
+object_storage_tls: false
+kafka_bootstrap_servers: localhost:9092
+kafka_result_topic: full-pipeline.edge-results
+kafka_client_id_prefix: fail-data-uploader

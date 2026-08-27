@@ -1,12 +1,12 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 import torch
-from ultralytics import YOLO
 
 from src.application.use_cases.recognizer.load_model_vit_ctc import load_model_vit_ctc
 from src.application.use_cases.recognizer.recognizerCTCModel import RecognizerCTCModel
 from src.application.use_cases.orchestration.train_recognizer_orchestration import resolve_vocab
-from src.infra.modeling.detection.yolo import YoloTrainer 
 from src.infra.data.dataloaders.ctc_collate import CTCLabelEncoder
 from src.utils.config_loader import ConfigLoader
 
@@ -27,7 +27,9 @@ def load_yolo_pt(
     config_loader: ConfigLoader,
     path: str,
     yolo_config_relative_path: str = "config/training/yolo/config.yaml",
-) -> YoloTrainer:
+) -> "YoloTrainer":
+    from src.infra.modeling.detection.yolo import YoloTrainer
+
     config_yolo = config_loader.load_yolo_config(config_relative_path=yolo_config_relative_path)
     trainer = YoloTrainer(config=config_yolo)
     trainer.load_model_best_weights(path)

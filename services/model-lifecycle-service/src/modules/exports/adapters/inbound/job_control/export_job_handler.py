@@ -40,6 +40,7 @@ class ExportJobHandler:
         detection_event_type: str,
         recognizer_event_type: str,
         project_root: Path,
+        onnx_export_dir: str = "artifacts/onnx",
         logger: Logger | None = None,
     ) -> None:
         self._detection_export = detection_export
@@ -47,6 +48,7 @@ class ExportJobHandler:
         self._detection_event_type = detection_event_type
         self._recognizer_event_type = recognizer_event_type
         self._project_root = project_root
+        self._onnx_export_dir = Path(onnx_export_dir)
         self._logger = logger or Logger("ExportJobHandler")
         self._targets = {
             detection_event_type: _ExportTarget(
@@ -135,7 +137,7 @@ class ExportJobHandler:
             )
             checkpoint_path = fallback_checkpoint_path
 
-        output_path = self._project_root / "data/onnx" / target.output_name
+        output_path = self._resolve_path(self._onnx_export_dir) / target.output_name
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         return ExportSpec(

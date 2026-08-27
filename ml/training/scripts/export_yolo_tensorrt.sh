@@ -2,7 +2,8 @@
 set -euo pipefail
 
 MODE="local"
-PROJECT_ROOT="${PWD}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 ENV_PATH="ml/training/config/.env.example"
 WEIGHTS_PATH="data/checkpoint/yolo/weights/best.pt"
 OUTPUT_ENGINE_PATH="artifacts/tensorrt/yolo.engine"

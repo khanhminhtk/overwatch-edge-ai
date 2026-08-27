@@ -28,6 +28,7 @@ type appConfig struct {
 	DeployModel      deployConfig
 	ExportTensorRT   exportdomain.Config
 	InferenceRuntime inferenceRuntimeConfig
+	MLflowDownload   mlflowDownloadConfig
 }
 
 type loggingConfig struct {
@@ -48,6 +49,11 @@ type inferenceRuntimeConfig struct {
 	Directory string `yaml:"directory"`
 	UVPath    string `yaml:"uv_path"`
 	Module    string `yaml:"module"`
+}
+type mlflowDownloadConfig struct {
+	TrackingURI         string `yaml:"tracking_uri"`
+	StagingDirectory    string `yaml:"staging_directory"`
+	DefaultArtifactPath string `yaml:"default_artifact_path"`
 }
 
 func resolveConfigDir() (string, error) {
@@ -102,7 +108,11 @@ func loadAppConfig(configDir string) (appConfig, error) {
 	if err != nil {
 		return appConfig{}, fmt.Errorf("load inference runtime worker config: %w", err)
 	}
-	settings := appConfig{Kafka: kafkaConfig, Postgres: postgresConfig, Log: logConfig, JobControl: jobControlConfig, DeployModel: deployModelConfig, ExportTensorRT: exportTensorRTConfig, InferenceRuntime: inferenceRuntimeConfig}
+	mlflowDownloadConfig, err := config.Load[mlflowDownloadConfig](options("mlflow_download"))
+	if err != nil {
+		return appConfig{}, fmt.Errorf("load MLflow download worker config: %w", err)
+	}
+	settings := appConfig{Kafka: kafkaConfig, Postgres: postgresConfig, Log: logConfig, JobControl: jobControlConfig, DeployModel: deployModelConfig, ExportTensorRT: exportTensorRTConfig, InferenceRuntime: inferenceRuntimeConfig, MLflowDownload: mlflowDownloadConfig}
 	if err := settings.validate(); err != nil {
 		return appConfig{}, err
 	}

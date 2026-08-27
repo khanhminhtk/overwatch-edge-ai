@@ -3,10 +3,14 @@ module orchestrator
 go 1.22
 
 require (
+	backend_nexus v0.0.0
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/segmentio/kafka-go v0.4.47
+	google.golang.org/grpc v1.81.1
 	gopkg.in/yaml.v3 v3.0.1
 )
+
+replace backend_nexus => ../../../services/object-storage-service
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
